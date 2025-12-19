@@ -9,6 +9,9 @@ const errorHandler = require('./middlewares/errorHandler');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const addressRoutes = require('./routes/addresses');
+const statsRoutes = require('./routes/stats');
+const servicesRoutes = require('./routes/services');
 const customerRoutes = require('./routes/customer/customerRoutes');
 const adminRoutes = require('./routes/admin/adminRoutes');
 const branchRoutes = require('./routes/branch/branchRoutes');
@@ -49,6 +52,9 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/stats', statsRoutes);
+app.use('/api/services', servicesRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/branch', branchRoutes);

@@ -1,23 +1,18 @@
 const express = require('express');
-const auth = require('../../middlewares/auth');
-const { isCustomer } = require('../../middlewares/roleCheck');
-
-// Import customer route modules
-const addressRoutes = require('./addressRoutes');
-const orderRoutes = require('./orderRoutes');
-const ticketRoutes = require('./ticketRoutes');
-const notificationRoutes = require('./notificationRoutes');
+const { protect } = require('../../middlewares/auth');
 
 const router = express.Router();
 
-// Apply authentication and customer role check to all routes
-router.use(auth);
-router.use(isCustomer);
+// Apply authentication to all routes
+router.use(protect);
 
-// Customer route modules
-router.use('/addresses', addressRoutes);
-router.use('/orders', orderRoutes);
-router.use('/tickets', ticketRoutes);
-router.use('/notifications', notificationRoutes);
+// Placeholder routes - will be implemented in later tasks
+router.get('/profile', (req, res) => {
+  res.json({ success: true, message: 'Customer profile endpoint - coming soon' });
+});
+
+router.get('/orders', (req, res) => {
+  res.json({ success: true, message: 'Customer orders endpoint - coming soon' });
+});
 
 module.exports = router;

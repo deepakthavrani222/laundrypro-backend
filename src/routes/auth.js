@@ -1,20 +1,40 @@
 const express = require('express');
-const { register, login, getProfile, updateProfile, changePassword, logout } = require('../controllers/authController');
-const { validate, authValidation, userValidation } = require('../utils/validators');
-const auth = require('../middlewares/auth');
-
 const router = express.Router();
 
+// Import controllers
+const {
+  register,
+  verifyEmail,
+  resendVerificationEmail,
+  login,
+  getProfile,
+  updateProfile,
+  logout
+} = require('../controllers/authController');
+
+// Import middleware
+const { protect } = require('../middlewares/auth');
+
+// Import validation
+const {
+  registerValidation,
+  loginValidation,
+  emailVerificationValidation,
+  profileUpdateValidation,
+  validate
+} = require('../utils/validation');
+
 // Public routes
-router.post('/register', validate(authValidation.register), register);
-router.post('/login', validate(authValidation.login), login);
+router.post('/register', validate(registerValidation), register);
+router.post('/verify-email', validate(emailVerificationValidation), verifyEmail);
+router.post('/resend-verification', resendVerificationEmail);
+router.post('/login', validate(loginValidation), login);
 
 // Protected routes
-router.use(auth); // All routes below require authentication
+router.use(protect); // All routes below require authentication
 
 router.get('/profile', getProfile);
-router.put('/profile', validate(userValidation.updateProfile), updateProfile);
-router.put('/change-password', validate(authValidation.changePassword), changePassword);
+router.put('/profile', validate(profileUpdateValidation), updateProfile);
 router.post('/logout', logout);
 
 module.exports = router;

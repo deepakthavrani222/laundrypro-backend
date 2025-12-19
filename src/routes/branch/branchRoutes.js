@@ -1,45 +1,18 @@
 const express = require('express');
-const auth = require('../../middlewares/auth');
-const { isBranchManagerOrAdmin } = require('../../middlewares/roleCheck');
-
-// Import branch controllers
-const {
-  getBranchDashboard,
-  getBranchOrders,
-  updateOrderStatus,
-  assignStaffToOrder,
-  getStaff,
-  createStaff,
-  updateStaff,
-  getInventory,
-  updateInventory,
-  requestRestock
-} = require('../../controllers/branch/branchController');
-
-const { validate, orderValidation, staffValidation } = require('../../utils/validators');
+const { protect } = require('../../middlewares/auth');
 
 const router = express.Router();
 
-// Apply authentication and branch manager role check
-router.use(auth);
-router.use(isBranchManagerOrAdmin);
+// Apply authentication
+router.use(protect);
 
-// Dashboard
-router.get('/dashboard', getBranchDashboard);
+// Placeholder routes - will be implemented in later tasks
+router.get('/dashboard', (req, res) => {
+  res.json({ success: true, message: 'Branch dashboard endpoint - coming soon' });
+});
 
-// Order Management
-router.get('/orders', getBranchOrders);
-router.put('/orders/:orderId/status', validate(orderValidation.updateOrderStatus), updateOrderStatus);
-router.put('/orders/:orderId/assign-staff', assignStaffToOrder);
-
-// Staff Management
-router.get('/staff', getStaff);
-router.post('/staff', validate(staffValidation.createStaff), createStaff);
-router.put('/staff/:staffId', validate(staffValidation.updateStaff), updateStaff);
-
-// Inventory Management
-router.get('/inventory', getInventory);
-router.put('/inventory/:itemId', updateInventory);
-router.post('/inventory/restock-request', requestRestock);
+router.get('/orders', (req, res) => {
+  res.json({ success: true, message: 'Branch orders endpoint - coming soon' });
+});
 
 module.exports = router;

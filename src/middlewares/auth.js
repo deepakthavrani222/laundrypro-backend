@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { verifyAccessToken } = require('../utils/jwt');
 
-const auth = async (req, res, next) => {
+// Protect routes - require authentication
+const protect = async (req, res, next) => {
   try {
     let token;
 
@@ -13,51 +15,107 @@ const auth = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: 'UNAUTHORIZED',
-        message: 'Access token is required'
+        message: 'Access denied. No token provided.'
       });
     }
 
     try {
       // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = verifyAccessToken(token);
       
-      // Get user from token
-      const user = await User.findById(decoded.id).select('-password');
+      // Get user from database
+      const user = await User.findById(decoded.userId).select('-password');
       
       if (!user) {
         return res.status(401).json({
           success: false,
-          error: 'UNAUTHORIZED',
-          message: 'User not found'
+          message: 'Token is valid but user no longer exists'
         });
       }
 
       if (!user.isActive) {
         return res.status(401).json({
           success: false,
-          error: 'ACCOUNT_DISABLED',
-          message: 'Account has been disabled'
+          message: 'User account is deactivated'
         });
       }
 
+      // Add user to request object
       req.user = user;
       next();
     } catch (error) {
       return res.status(401).json({
         success: false,
-        error: 'INVALID_TOKEN',
-        message: 'Invalid or expired token'
+        message: 'Invalid token'
       });
     }
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: 'SERVER_ERROR',
-      message: 'Authentication error'
+      message: 'Server error in authentication'
     });
   }
 };
 
-module.exports = auth;
+// Restrict to specific roles
+const restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.'
+      });
+    }
+    next();
+  };
+};
+
+// Check if email is verified
+const requireEmailVerification = (req, res, next) => {
+  if (!req.user.isEmailVerified) {
+    return res.status(403).json({
+      success: false,
+      message: 'Please verify your email address to access this resource',
+      requiresEmailVerification: true
+    });
+  }
+  next();
+};
+
+// Optional authentication - doesn't fail if no token
+const optionalAuth = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (token) {
+      try {
+        const decoded = verifyAccessToken(token);
+        const user = await User.findById(decoded.userId).select('-password');
+        
+        if (user && user.isActive) {
+          req.user = user;
+        }
+      } catch (error) {
+        // Token is invalid, but we continue without user
+        console.log('Optional auth: Invalid token, continuing without user');
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('Optional auth middleware error:', error);
+    next();
+  }
+};
+
+module.exports = {
+  protect,
+  restrictTo,
+  requireEmailVerification,
+  optionalAuth
+};

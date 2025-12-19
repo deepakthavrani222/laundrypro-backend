@@ -9,18 +9,20 @@ const connectDB = async () => {
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
+    return conn;
   } catch (error) {
     console.error(`❌ MongoDB Connection Error: ${error.message}`);
     
     // More detailed error logging for cluster connections
     if (error.name === 'MongoServerSelectionError') {
       console.error('💡 Check your MongoDB Atlas cluster connection string and network access');
+      console.error('💡 Add your IP to MongoDB Atlas whitelist or use 0.0.0.0/0 for development');
     }
     if (error.name === 'MongoParseError') {
       console.error('💡 Check your MongoDB connection string format');
     }
     
-    process.exit(1);
+    throw error; // Don't exit, let the caller handle it
   }
 };
 
