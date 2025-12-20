@@ -16,7 +16,19 @@ const customerRoutes = require('./routes/customer/customerRoutes');
 const adminRoutes = require('./routes/admin/adminRoutes');
 const branchRoutes = require('./routes/branch/branchRoutes');
 const supportRoutes = require('./routes/support/supportRoutes');
-const centerAdminRoutes = require('./routes/centerAdmin/centerAdminRoutes');
+const centerAdminAuthRoutes = require('./routes/centerAdminAuth');
+const centerAdminDashboardRoutes = require('./routes/centerAdminDashboard');
+const centerAdminBranchRoutes = require('./routes/centerAdminBranches');
+const centerAdminRoleRoutes = require('./routes/centerAdminRoles');
+const centerAdminPricingRoutes = require('./routes/centerAdminPricing');
+const centerAdminFinancialRoutes = require('./routes/centerAdminFinancial');
+const centerAdminRiskRoutes = require('./routes/centerAdminRisk');
+const centerAdminAnalyticsRoutes = require('./routes/centerAdminAnalytics');
+const centerAdminSettingsRoutes = require('./routes/centerAdminSettings');
+const centerAdminAuditRoutes = require('./routes/centerAdminAudit');
+const centerAdminLogisticsRoutes = require('./routes/centerAdminLogistics');
+const centerAdminOrdersRoutes = require('./routes/centerAdminOrders');
+const centerAdminUsersRoutes = require('./routes/centerAdminUsers');
 
 const app = express();
 
@@ -24,13 +36,17 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 
-// Rate limiting
+// Rate limiting (relaxed for development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // increased limit for development
   message: 'Too many requests from this IP, please try again later.'
 });
-app.use('/api/', limiter);
+
+// Only apply rate limiting in production
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api/', limiter);
+}
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -59,7 +75,19 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/branch', branchRoutes);
 app.use('/api/support', supportRoutes);
-app.use('/api/center-admin', centerAdminRoutes);
+app.use('/api/center-admin/auth', centerAdminAuthRoutes);
+app.use('/api/center-admin/dashboard', centerAdminDashboardRoutes);
+app.use('/api/center-admin/branches', centerAdminBranchRoutes);
+app.use('/api/center-admin/roles', centerAdminRoleRoutes);
+app.use('/api/center-admin/pricing', centerAdminPricingRoutes);
+app.use('/api/center-admin/financial', centerAdminFinancialRoutes);
+app.use('/api/center-admin/risk', centerAdminRiskRoutes);
+app.use('/api/center-admin/analytics', centerAdminAnalyticsRoutes);
+app.use('/api/center-admin/settings', centerAdminSettingsRoutes);
+app.use('/api/center-admin/audit', centerAdminAuditRoutes);
+app.use('/api/center-admin/logistics', centerAdminLogisticsRoutes);
+app.use('/api/center-admin/orders', centerAdminOrdersRoutes);
+app.use('/api/center-admin/users', centerAdminUsersRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

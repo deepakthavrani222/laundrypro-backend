@@ -1,8 +1,6 @@
 const Order = require('../../models/Order');
-const OrderItem = require('../../models/OrderItem');
-const Staff = require('../../models/Staff');
-const Branch = require('../../models/Branch');
 const User = require('../../models/User');
+const Branch = require('../../models/Branch');
 const { 
   sendSuccess, 
   sendError, 
@@ -10,143 +8,138 @@ const {
   getPagination,
   formatPaginationResponse
 } = require('../../utils/helpers');
-const { ORDER_STATUS, USER_ROLES, STAFF_ROLES } = require('../../config/constants');
 
 // @desc    Get branch dashboard data
 // @route   GET /api/branch/dashboard
-// @access  Private (Branch Manager/Admin)
-const getBranchDashboard = asyncHandler(async (req, res) => {
+// @access  Private (Branch Manager)
+const getDashboard = asyncHandler(async (req, res) => {
   const user = req.user;
-  let branchId;
-
-  // Get branch ID based on user role
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    branchId = user.assignedBranch;
-    if (!branchId) {
-      return sendError(res, 'NO_BRANCH_ASSIGNED', 'No branch assigned to this manager', 400);
-    }
-  } else {
-    // For admin, they need to specify branch or we show all
-    branchId = req.query.branchId;
-    if (!branchId) {
-      return sendError(res, 'BRANCH_REQUIRED', 'Branch ID is required', 400);
-    }
+  
+  // Get the branch assigned to this manager
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned to this manager', 404);
   }
 
   const today = new Date();
   const startOfDay = new Date(today.setHours(0, 0, 0, 0));
   const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+  const startOfWeek = new Date(today.setDate(today.getDate() - 7));
 
-  // Get branch dashboard metrics
+  // Get dashboard metrics
   const [
-    totalOrders,
     todayOrders,
     pendingOrders,
-    inProcessOrders,
+    processingOrders,
     readyOrders,
-    totalStaff,
-    activeStaff,
-    branch
+    completedToday,
+    weeklyOrders,
+    todayRevenue,
+    staffCount,
+    activeStaff
   ] = await Promise.all([
-    Order.countDocuments({ branch: branchId }),
-    Order.countDocuments({ 
-      branch: branchId, 
-      createdAt: { $gte: startOfDay, $lte: endOfDay } 
-    }),
-    Order.countDocuments({ 
-      branch: branchId, 
-      status: { $in: [ORDER_STATUS.ASSIGNED_TO_BRANCH, ORDER_STATUS.PICKED] }
-    }),
-    Order.countDocuments({ 
-      branch: branchId, 
-      status: ORDER_STATUS.IN_PROCESS 
-    }),
-    Order.countDocuments({ 
-      branch: branchId, 
-      status: ORDER_STATUS.READY 
-    }),
-    Staff.countDocuments({ branch: branchId }),
-    Staff.countDocuments({ branch: branchId, isActive: true }),
-    Branch.findById(branchId)
+    Order.countDocuments({ branch: branch._id, createdAt: { $gte: startOfDay } }),
+    Order.countDocuments({ branch: branch._id, status: { $in: ['assigned_to_branch', 'picked'] } }),
+    Order.countDocuments({ branch: branch._id, status: 'in_process' }),
+    Order.countDocuments({ branch: branch._id, status: 'ready' }),
+    Order.countDocuments({ branch: branch._id, status: 'delivered', updatedAt: { $gte: startOfDay } }),
+    Order.countDocuments({ branch: branch._id, createdAt: { $gte: startOfWeek } }),
+    Order.aggregate([
+      { $match: { branch: branch._id, createdAt: { $gte: startOfDay } } },
+      { $group: { _id: null, total: { $sum: '$pricing.total' } } }
+    ]),
+    User.countDocuments({ assignedBranch: branch._id, role: { $in: ['staff', 'branch_manager'] } }),
+    User.countDocuments({ assignedBranch: branch._id, role: { $in: ['staff', 'branch_manager'] }, isActive: true })
   ]);
 
-  // Get recent orders for this branch
-  const recentOrders = await Order.find({ branch: branchId })
+  // Get recent orders
+  const recentOrders = await Order.find({ branch: branch._id })
     .populate('customer', 'name phone')
     .sort({ createdAt: -1 })
     .limit(10)
-    .select('orderNumber status pricing.total createdAt isExpress');
+    .select('orderNumber status pricing createdAt isExpress items')
+    .lean();
 
   // Get staff performance
-  const staffPerformance = await Staff.find({ branch: branchId, isActive: true })
-    .select('name role performance currentOrders')
-    .limit(5);
+  const staffPerformance = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startOfDay } } },
+    { $unwind: { path: '$assignedStaff', preserveNullAndEmptyArrays: false } },
+    { $group: { _id: '$assignedStaff.staff', ordersProcessed: { $sum: 1 } } },
+    { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'staff' } },
+    { $unwind: { path: '$staff', preserveNullAndEmptyArrays: true } },
+    { $project: { name: '$staff.name', role: '$staff.role', ordersProcessed: 1 } },
+    { $sort: { ordersProcessed: -1 } },
+    { $limit: 5 }
+  ]);
 
-  const dashboardData = {
-    branch: {
-      name: branch?.name,
-      code: branch?.code
-    },
+  // Get alerts
+  const alerts = [];
+  
+  // Check for express orders
+  const expressOrders = await Order.countDocuments({ 
+    branch: branch._id, 
+    isExpress: true, 
+    status: { $nin: ['delivered', 'cancelled'] } 
+  });
+  if (expressOrders > 0) {
+    alerts.push({ type: 'warning', title: `${expressOrders} Express Orders`, message: 'Require priority processing' });
+  }
+
+  // Check pending orders
+  if (pendingOrders > 10) {
+    alerts.push({ type: 'alert', title: 'High Pending Orders', message: `${pendingOrders} orders awaiting processing` });
+  }
+
+  sendSuccess(res, {
+    branch: { _id: branch._id, name: branch.name, code: branch.code },
     metrics: {
-      totalOrders,
       todayOrders,
       pendingOrders,
-      inProcessOrders,
+      processingOrders,
       readyOrders,
-      totalStaff,
+      completedToday,
+      weeklyOrders,
+      todayRevenue: todayRevenue[0]?.total || 0,
+      staffCount,
       activeStaff
     },
-    recentOrders,
-    staffPerformance
-  };
-
-  sendSuccess(res, dashboardData, 'Branch dashboard data retrieved successfully');
+    recentOrders: recentOrders.map(order => ({
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      amount: order.pricing?.total || 0,
+      itemCount: order.items?.length || 0,
+      isExpress: order.isExpress,
+      createdAt: order.createdAt,
+      customer: order.customer
+    })),
+    staffPerformance,
+    alerts
+  }, 'Dashboard data retrieved successfully');
 });
 
 // @desc    Get branch orders
 // @route   GET /api/branch/orders
-// @access  Private (Branch Manager/Admin)
-const getBranchOrders = asyncHandler(async (req, res) => {
+// @access  Private (Branch Manager)
+const getOrders = asyncHandler(async (req, res) => {
   const user = req.user;
-  let branchId;
-
-  // Get branch ID based on user role
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    branchId = user.assignedBranch;
-  } else {
-    branchId = req.query.branchId;
+  const { page = 1, limit = 20, status, search, priority } = req.query;
+  
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned to this manager', 404);
   }
-
-  if (!branchId) {
-    return sendError(res, 'BRANCH_REQUIRED', 'Branch ID is required', 400);
-  }
-
-  const { 
-    page = 1, 
-    limit = 20, 
-    status, 
-    search,
-    startDate,
-    endDate
-  } = req.query;
 
   const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
-
-  // Build query
-  const query = { branch: branchId };
   
-  if (status) query.status = status;
+  const query = { branch: branch._id };
   
-  if (startDate || endDate) {
-    query.createdAt = {};
-    if (startDate) query.createdAt.$gte = new Date(startDate);
-    if (endDate) query.createdAt.$lte = new Date(endDate);
-  }
-
+  if (status && status !== 'all') query.status = status;
+  if (priority === 'high') query.isExpress = true;
+  
   if (search) {
     query.$or = [
-      { orderNumber: { $regex: search, $options: 'i' } },
-      { 'pickupAddress.phone': { $regex: search, $options: 'i' } }
+      { orderNumber: { $regex: search, $options: 'i' } }
     ];
   }
 
@@ -154,287 +147,467 @@ const getBranchOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find(query)
     .populate('customer', 'name phone email isVIP')
     .populate('items')
-    .populate('assignedStaff.staff', 'name role')
-    .sort({ createdAt: -1 })
+    .sort({ isExpress: -1, createdAt: -1 })
     .skip(skip)
-    .limit(limitNum);
+    .limit(limitNum)
+    .lean();
 
-  const response = formatPaginationResponse(orders, total, pageNum, limitNum);
-  sendSuccess(res, response, 'Branch orders retrieved successfully');
+  // Transform items for better display
+  const transformedOrders = orders.map(order => ({
+    ...order,
+    items: (order.items || []).map((item) => ({
+      _id: item._id,
+      name: item.itemType || item.service || 'Item',
+      serviceType: item.service,
+      category: item.category,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice
+    }))
+  }));
+
+  const response = formatPaginationResponse(transformedOrders, total, pageNum, limitNum);
+  sendSuccess(res, response, 'Orders retrieved successfully');
 });
 
-// @desc    Update order status (Branch Manager)
+// @desc    Update order status (branch level)
 // @route   PUT /api/branch/orders/:orderId/status
-// @access  Private (Branch Manager/Admin)
+// @access  Private (Branch Manager)
 const updateOrderStatus = asyncHandler(async (req, res) => {
+  const user = req.user;
   const { orderId } = req.params;
   const { status, notes } = req.body;
-  const user = req.user;
 
-  const order = await Order.findById(orderId);
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const order = await Order.findOne({ _id: orderId, branch: branch._id });
   if (!order) {
-    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found', 404);
+    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found in your branch', 404);
   }
 
-  // Check if branch manager can access this order
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    if (!order.branch || order.branch.toString() !== user.assignedBranch.toString()) {
-      return sendError(res, 'FORBIDDEN', 'Access denied to this order', 403);
-    }
-  }
-
-  // Validate status transitions that branch manager can make
-  const allowedTransitions = {
-    [ORDER_STATUS.ASSIGNED_TO_LOGISTICS_PICKUP]: [ORDER_STATUS.PICKED],
-    [ORDER_STATUS.PICKED]: [ORDER_STATUS.IN_PROCESS],
-    [ORDER_STATUS.IN_PROCESS]: [ORDER_STATUS.READY],
-    [ORDER_STATUS.READY]: [ORDER_STATUS.ASSIGNED_TO_LOGISTICS_DELIVERY],
-    [ORDER_STATUS.ASSIGNED_TO_LOGISTICS_DELIVERY]: [ORDER_STATUS.OUT_FOR_DELIVERY],
-    [ORDER_STATUS.OUT_FOR_DELIVERY]: [ORDER_STATUS.DELIVERED]
+  // Valid status transitions for branch
+  const validTransitions = {
+    'assigned_to_branch': ['in_process'],
+    'picked': ['in_process'],
+    'in_process': ['ready'],
+    'ready': ['out_for_delivery']
   };
 
-  if (!allowedTransitions[order.status]?.includes(status)) {
-    return sendError(res, 'INVALID_TRANSITION', 'Invalid status transition', 400);
+  if (!validTransitions[order.status]?.includes(status)) {
+    return sendError(res, 'INVALID_TRANSITION', `Cannot change status from ${order.status} to ${status}`, 400);
   }
 
-  await order.updateStatus(status, user._id, notes || `Status updated by branch manager`);
+  order.status = status;
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({
+    status,
+    updatedBy: user._id,
+    updatedAt: new Date(),
+    notes: notes || `Status updated by branch manager`
+  });
+  
+  await order.save();
 
-  // If moving to IN_PROCESS, deduct inventory
-  if (status === ORDER_STATUS.IN_PROCESS) {
-    // TODO: Implement inventory deduction logic
-  }
-
-  const updatedOrder = await Order.findById(orderId)
-    .populate('customer', 'name phone')
-    .populate('items');
-
-  sendSuccess(res, { order: updatedOrder }, 'Order status updated successfully');
+  sendSuccess(res, { order }, 'Order status updated successfully');
 });
 
 // @desc    Assign staff to order
-// @route   PUT /api/branch/orders/:orderId/assign-staff
-// @access  Private (Branch Manager/Admin)
+// @route   PUT /api/branch/orders/:orderId/assign
+// @access  Private (Branch Manager)
 const assignStaffToOrder = asyncHandler(async (req, res) => {
-  const { orderId } = req.params;
-  const { staffId } = req.body;
   const user = req.user;
+  const { orderId } = req.params;
+  const { staffId, estimatedTime } = req.body;
 
-  if (!staffId) {
-    return sendError(res, 'STAFF_REQUIRED', 'Staff ID is required', 400);
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
 
-  const order = await Order.findById(orderId);
+  const order = await Order.findOne({ _id: orderId, branch: branch._id });
   if (!order) {
-    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found', 404);
+    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found in your branch', 404);
   }
 
-  // Check branch access
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    if (!order.branch || order.branch.toString() !== user.assignedBranch.toString()) {
-      return sendError(res, 'FORBIDDEN', 'Access denied to this order', 403);
-    }
+  const staff = await User.findOne({ _id: staffId, assignedBranch: branch._id, isActive: true });
+  if (!staff) {
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff member not found or not active', 404);
   }
 
-  const staff = await Staff.findById(staffId);
-  if (!staff || !staff.isActive) {
-    return sendError(res, 'STAFF_NOT_FOUND', 'Staff not found or inactive', 404);
-  }
-
-  // Check if staff belongs to the same branch
-  if (staff.branch.toString() !== order.branch.toString()) {
-    return sendError(res, 'STAFF_BRANCH_MISMATCH', 'Staff does not belong to this branch', 400);
-  }
-
-  // Check if staff is available
-  if (!staff.isAvailableForWork()) {
-    return sendError(res, 'STAFF_UNAVAILABLE', 'Staff is not available for new orders', 400);
-  }
-
-  // Assign staff to order
-  const existingAssignment = order.assignedStaff.find(
-    assignment => assignment.staff.toString() === staffId
-  );
-
-  if (existingAssignment) {
-    return sendError(res, 'ALREADY_ASSIGNED', 'Staff is already assigned to this order', 400);
-  }
-
+  // Add to assignedStaff array
+  if (!order.assignedStaff) order.assignedStaff = [];
   order.assignedStaff.push({
     staff: staffId,
     assignedAt: new Date()
   });
+  
+  if (estimatedTime) {
+    order.estimatedDeliveryDate = new Date(estimatedTime);
+  }
+  
+  if (order.status === 'assigned_to_branch' || order.status === 'picked') {
+    order.status = 'in_process';
+  }
+  
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({
+    status: order.status,
+    updatedBy: user._id,
+    updatedAt: new Date(),
+    notes: `Assigned to ${staff.name}`
+  });
 
   await order.save();
 
-  // Update staff workload
-  await staff.assignOrder(orderId);
-
   const updatedOrder = await Order.findById(orderId)
-    .populate('assignedStaff.staff', 'name role');
+    .populate('customer', 'name phone');
 
-  sendSuccess(res, { order: updatedOrder }, 'Staff assigned to order successfully');
+  sendSuccess(res, { order: updatedOrder }, 'Staff assigned successfully');
 });
 
 // @desc    Get branch staff
 // @route   GET /api/branch/staff
-// @access  Private (Branch Manager/Admin)
+// @access  Private (Branch Manager)
 const getStaff = asyncHandler(async (req, res) => {
   const user = req.user;
-  let branchId;
-
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    branchId = user.assignedBranch;
-  } else {
-    branchId = req.query.branchId;
+  
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
 
-  if (!branchId) {
-    return sendError(res, 'BRANCH_REQUIRED', 'Branch ID is required', 400);
-  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const { page = 1, limit = 20, role, isActive } = req.query;
-  const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
+  const staff = await User.find({ 
+    assignedBranch: branch._id,
+    role: { $in: ['staff', 'branch_manager'] }
+  }).select('-password').lean();
 
-  const query = { branch: branchId };
-  if (role) query.role = role;
-  if (isActive !== undefined) query.isActive = isActive === 'true';
+  // Get today's order count for each staff
+  const staffWithStats = await Promise.all(
+    staff.map(async (member) => {
+      const ordersToday = await Order.countDocuments({
+        'assignedStaff.staff': member._id,
+        updatedAt: { $gte: today }
+      });
+      const totalOrders = await Order.countDocuments({ 'assignedStaff.staff': member._id });
+      
+      return {
+        ...member,
+        stats: {
+          ordersToday,
+          totalOrders,
+          efficiency: Math.min(100, Math.round((ordersToday / 10) * 100)) // Simple efficiency calc
+        }
+      };
+    })
+  );
 
-  const total = await Staff.countDocuments(query);
-  const staff = await Staff.find(query)
-    .populate('currentOrders.order', 'orderNumber status')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum);
-
-  const response = formatPaginationResponse(staff, total, pageNum, limitNum);
-  sendSuccess(res, response, 'Staff retrieved successfully');
+  sendSuccess(res, { staff: staffWithStats, branch: { name: branch.name, code: branch.code } }, 'Staff retrieved successfully');
 });
 
-// @desc    Create new staff
-// @route   POST /api/branch/staff
-// @access  Private (Branch Manager/Admin)
-const createStaff = asyncHandler(async (req, res) => {
-  const { name, phone, role } = req.body;
+// @desc    Toggle staff availability
+// @route   PATCH /api/branch/staff/:staffId/availability
+// @access  Private (Branch Manager)
+const toggleStaffAvailability = asyncHandler(async (req, res) => {
   const user = req.user;
-
-  let branchId;
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    branchId = user.assignedBranch;
-  } else {
-    branchId = req.body.branchId;
-  }
-
-  if (!branchId) {
-    return sendError(res, 'BRANCH_REQUIRED', 'Branch ID is required', 400);
-  }
-
-  // Check if phone number already exists
-  const existingStaff = await Staff.findOne({ phone });
-  if (existingStaff) {
-    return sendError(res, 'PHONE_EXISTS', 'Staff with this phone number already exists', 400);
-  }
-
-  const staff = await Staff.create({
-    name,
-    phone,
-    role,
-    branch: branchId
-  });
-
-  sendSuccess(res, { staff }, 'Staff created successfully', 201);
-});
-
-// @desc    Update staff
-// @route   PUT /api/branch/staff/:staffId
-// @access  Private (Branch Manager/Admin)
-const updateStaff = asyncHandler(async (req, res) => {
   const { staffId } = req.params;
-  const updateData = req.body;
-  const user = req.user;
 
-  const staff = await Staff.findById(staffId);
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const staff = await User.findOne({ _id: staffId, assignedBranch: branch._id });
   if (!staff) {
-    return sendError(res, 'STAFF_NOT_FOUND', 'Staff not found', 404);
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff not found in your branch', 404);
   }
 
-  // Check branch access
-  if (user.role === USER_ROLES.BRANCH_MANAGER) {
-    if (staff.branch.toString() !== user.assignedBranch.toString()) {
-      return sendError(res, 'FORBIDDEN', 'Access denied to this staff member', 403);
-    }
-  }
-
-  // Update staff
-  Object.keys(updateData).forEach(key => {
-    if (updateData[key] !== undefined) {
-      if (key === 'availability') {
-        staff.availability = { ...staff.availability, ...updateData[key] };
-      } else {
-        staff[key] = updateData[key];
-      }
-    }
-  });
-
+  staff.isActive = !staff.isActive;
   await staff.save();
 
-  sendSuccess(res, { staff }, 'Staff updated successfully');
+  sendSuccess(res, { 
+    staff: { _id: staff._id, name: staff.name, isActive: staff.isActive } 
+  }, `Staff ${staff.isActive ? 'activated' : 'deactivated'} successfully`);
 });
 
-// @desc    Get branch inventory
-// @route   GET /api/branch/inventory
-// @access  Private (Branch Manager/Admin)
-const getInventory = asyncHandler(async (req, res) => {
-  // This would be implemented when we create inventory model
-  // For now, return mock data
-  const mockInventory = [
-    {
-      _id: '1',
-      itemName: 'Detergent',
-      currentStock: 50,
-      minThreshold: 20,
-      unit: 'liters',
-      lastRestocked: new Date(),
-      isLowStock: false
-    },
-    {
-      _id: '2',
-      itemName: 'Fabric Softener',
-      currentStock: 15,
-      minThreshold: 20,
-      unit: 'liters',
-      lastRestocked: new Date(),
-      isLowStock: true
+// @desc    Get branch analytics
+// @route   GET /api/branch/analytics
+// @access  Private (Branch Manager)
+const getAnalytics = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { timeframe = '7d' } = req.query;
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const now = new Date();
+  let startDate;
+  switch (timeframe) {
+    case '24h': startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+    case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+    case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+    default: startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+
+  // Daily stats
+  const dailyStats = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startDate } } },
+    { $group: {
+      _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' }, day: { $dayOfMonth: '$createdAt' } },
+      orders: { $sum: 1 },
+      revenue: { $sum: '$pricing.total' }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+  ]);
+
+  // Service breakdown
+  const serviceStats = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startDate } } },
+    { $unwind: '$items' },
+    { $group: { _id: '$items.serviceType', count: { $sum: 1 }, revenue: { $sum: '$items.totalPrice' } } },
+    { $sort: { count: -1 } }
+  ]);
+
+  // Status distribution
+  const statusDistribution = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startDate } } },
+    { $group: { _id: '$status', count: { $sum: 1 } } }
+  ]);
+
+  // Staff performance
+  const staffPerformance = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startDate }, 'assignedStaff.0': { $exists: true } } },
+    { $unwind: '$assignedStaff' },
+    { $group: { _id: '$assignedStaff.staff', ordersProcessed: { $sum: 1 }, revenue: { $sum: '$pricing.total' } } },
+    { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'staff' } },
+    { $unwind: '$staff' },
+    { $project: { name: '$staff.name', ordersProcessed: 1, revenue: 1 } },
+    { $sort: { ordersProcessed: -1 } }
+  ]);
+
+  // Totals
+  const totals = await Order.aggregate([
+    { $match: { branch: branch._id, createdAt: { $gte: startDate } } },
+    { $group: { _id: null, totalOrders: { $sum: 1 }, totalRevenue: { $sum: '$pricing.total' }, avgOrderValue: { $avg: '$pricing.total' } } }
+  ]);
+
+  sendSuccess(res, {
+    branch: { name: branch.name, code: branch.code },
+    timeframe,
+    totals: totals[0] || { totalOrders: 0, totalRevenue: 0, avgOrderValue: 0 },
+    dailyStats,
+    serviceStats,
+    statusDistribution,
+    staffPerformance
+  }, 'Analytics retrieved successfully');
+});
+
+// @desc    Get branch settings
+// @route   GET /api/branch/settings
+// @access  Private (Branch Manager)
+const getSettings = asyncHandler(async (req, res) => {
+  const user = req.user;
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  sendSuccess(res, {
+    branch: {
+      _id: branch._id,
+      name: branch.name,
+      code: branch.code,
+      address: branch.address,
+      contact: branch.contact,
+      operatingHours: branch.operatingHours || { open: '09:00', close: '21:00' },
+      capacity: branch.capacity,
+      isActive: branch.isActive,
+      settings: branch.settings || {
+        acceptExpressOrders: true,
+        peakHourSurcharge: 0,
+        holidayClosures: []
+      }
     }
-  ];
-
-  sendSuccess(res, { inventory: mockInventory }, 'Inventory retrieved successfully');
+  }, 'Settings retrieved successfully');
 });
 
-// @desc    Update inventory item
-// @route   PUT /api/branch/inventory/:itemId
-// @access  Private (Branch Manager/Admin)
-const updateInventory = asyncHandler(async (req, res) => {
-  // This would be implemented when we create inventory model
-  sendSuccess(res, null, 'Inventory updated successfully');
-});
+// @desc    Update branch settings
+// @route   PUT /api/branch/settings
+// @access  Private (Branch Manager)
+const updateSettings = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { operatingHours, settings } = req.body;
 
-// @desc    Request inventory restock
-// @route   POST /api/branch/inventory/restock-request
-// @access  Private (Branch Manager/Admin)
-const requestRestock = asyncHandler(async (req, res) => {
-  // This would be implemented when we create inventory and restock request models
-  sendSuccess(res, null, 'Restock request submitted successfully');
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  if (operatingHours) branch.operatingHours = operatingHours;
+  if (settings) branch.settings = { ...branch.settings, ...settings };
+  
+  await branch.save();
+
+  sendSuccess(res, { branch }, 'Settings updated successfully');
 });
 
 module.exports = {
-  getBranchDashboard,
-  getBranchOrders,
+  getDashboard,
+  getOrders,
   updateOrderStatus,
   assignStaffToOrder,
   getStaff,
-  createStaff,
-  updateStaff,
-  getInventory,
-  updateInventory,
-  requestRestock
+  toggleStaffAvailability,
+  getAnalytics,
+  getSettings,
+  updateSettings
 };
+
+
+// ==================== INVENTORY MANAGEMENT ====================
+
+const Inventory = require('../../models/Inventory');
+const { INVENTORY_ITEMS } = require('../../config/constants');
+
+// @desc    Get branch inventory
+// @route   GET /api/branch/inventory
+// @access  Private (Branch Manager)
+const getInventory = asyncHandler(async (req, res) => {
+  const user = req.user;
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const inventory = await Inventory.find({ branch: branch._id })
+    .sort({ isLowStock: -1, itemName: 1 })
+    .lean();
+
+  // Calculate stats
+  const stats = {
+    totalItems: inventory.length,
+    lowStockItems: inventory.filter(i => i.isLowStock).length,
+    expiredItems: inventory.filter(i => i.isExpired).length,
+    totalValue: inventory.reduce((sum, i) => sum + (i.currentStock * (i.unitCost || 0)), 0)
+  };
+
+  sendSuccess(res, { 
+    inventory, 
+    stats,
+    branch: { name: branch.name, code: branch.code }
+  }, 'Inventory retrieved successfully');
+});
+
+// @desc    Add/Update inventory item
+// @route   POST /api/branch/inventory
+// @access  Private (Branch Manager)
+const addInventoryItem = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { itemName, currentStock, minThreshold, maxCapacity, unit, unitCost, supplier, expiryDate } = req.body;
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  // Check if item already exists
+  let item = await Inventory.findOne({ branch: branch._id, itemName });
+
+  if (item) {
+    // Update existing
+    item.currentStock = currentStock;
+    item.minThreshold = minThreshold || item.minThreshold;
+    item.maxCapacity = maxCapacity || item.maxCapacity;
+    item.unit = unit || item.unit;
+    item.unitCost = unitCost || item.unitCost;
+    item.supplier = supplier || item.supplier;
+    item.expiryDate = expiryDate || item.expiryDate;
+    item.lastRestocked = new Date();
+  } else {
+    // Create new
+    item = new Inventory({
+      branch: branch._id,
+      itemName,
+      currentStock,
+      minThreshold: minThreshold || 10,
+      maxCapacity: maxCapacity || 100,
+      unit: unit || 'units',
+      unitCost: unitCost || 0,
+      supplier,
+      expiryDate
+    });
+  }
+
+  await item.save();
+
+  sendSuccess(res, { item }, item.isNew ? 'Inventory item added' : 'Inventory item updated');
+});
+
+// @desc    Update inventory stock
+// @route   PUT /api/branch/inventory/:itemId/stock
+// @access  Private (Branch Manager)
+const updateInventoryStock = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { itemId } = req.params;
+  const { quantity, action, reason } = req.body; // action: 'add' or 'consume'
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const item = await Inventory.findOne({ _id: itemId, branch: branch._id });
+  if (!item) {
+    return sendError(res, 'ITEM_NOT_FOUND', 'Inventory item not found', 404);
+  }
+
+  if (action === 'add') {
+    item.addStock(quantity, reason || 'manual_restock');
+  } else if (action === 'consume') {
+    if (item.currentStock < quantity) {
+      return sendError(res, 'INSUFFICIENT_STOCK', 'Not enough stock available', 400);
+    }
+    item.consumeStock(quantity, null, reason || 'manual_consumption');
+  } else {
+    return sendError(res, 'INVALID_ACTION', 'Action must be "add" or "consume"', 400);
+  }
+
+  await item.save();
+
+  sendSuccess(res, { item }, 'Stock updated successfully');
+});
+
+// @desc    Delete inventory item
+// @route   DELETE /api/branch/inventory/:itemId
+// @access  Private (Branch Manager)
+const deleteInventoryItem = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { itemId } = req.params;
+
+  const branch = await Branch.findOne({ manager: user._id });
+  if (!branch) {
+    return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
+  }
+
+  const item = await Inventory.findOneAndDelete({ _id: itemId, branch: branch._id });
+  if (!item) {
+    return sendError(res, 'ITEM_NOT_FOUND', 'Inventory item not found', 404);
+  }
+
+  sendSuccess(res, null, 'Inventory item deleted');
+});
+
+// Export new functions
+module.exports.getInventory = getInventory;
+module.exports.addInventoryItem = addInventoryItem;
+module.exports.updateInventoryStock = updateInventoryStock;
+module.exports.deleteInventoryItem = deleteInventoryItem;
