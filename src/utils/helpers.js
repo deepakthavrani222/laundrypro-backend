@@ -92,6 +92,16 @@ const calculateItemPrice = (itemType, service, category, isExpress = false) => {
 
   // Service multipliers
   const serviceMultipliers = {
+    // New 8 services
+    [SERVICES.WASH_FOLD]: 1,
+    [SERVICES.WASH_IRON]: 1.3,
+    [SERVICES.PREMIUM_LAUNDRY]: 1.8,
+    [SERVICES.DRY_CLEAN]: 2,
+    [SERVICES.STEAM_PRESS]: 0.6,
+    [SERVICES.STARCHING]: 0.7,
+    [SERVICES.PREMIUM_STEAM_PRESS]: 0.9,
+    [SERVICES.PREMIUM_DRY_CLEAN]: 2.5,
+    // Legacy services (backward compatibility)
     [SERVICES.WASHING]: 1,
     [SERVICES.DRY_CLEANING]: 2,
     [SERVICES.IRONING]: 0.5

@@ -1,18 +1,31 @@
 const express = require('express');
 const { protect } = require('../../middlewares/auth');
+const {
+  getSupportDashboard,
+  getTickets,
+  getTicketById,
+  updateTicketStatus,
+  assignTicket,
+  addMessageToTicket,
+  escalateTicket,
+  resolveTicket
+} = require('../../controllers/support/supportController');
 
 const router = express.Router();
 
 // Apply authentication
 router.use(protect);
 
-// Placeholder routes - will be implemented in later tasks
-router.get('/dashboard', (req, res) => {
-  res.json({ success: true, message: 'Support dashboard endpoint - coming soon' });
-});
+// Dashboard
+router.get('/dashboard', getSupportDashboard);
 
-router.get('/tickets', (req, res) => {
-  res.json({ success: true, message: 'Support tickets endpoint - coming soon' });
-});
+// Tickets
+router.get('/tickets', getTickets);
+router.get('/tickets/:ticketId', getTicketById);
+router.put('/tickets/:ticketId/status', updateTicketStatus);
+router.put('/tickets/:ticketId/assign', assignTicket);
+router.post('/tickets/:ticketId/messages', addMessageToTicket);
+router.put('/tickets/:ticketId/escalate', escalateTicket);
+router.put('/tickets/:ticketId/resolve', resolveTicket);
 
 module.exports = router;

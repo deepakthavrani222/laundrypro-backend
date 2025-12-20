@@ -24,6 +24,15 @@ const ORDER_STATUS = {
 
 // Services
 const SERVICES = {
+  WASH_FOLD: 'wash_fold',
+  WASH_IRON: 'wash_iron',
+  PREMIUM_LAUNDRY: 'premium_laundry',
+  DRY_CLEAN: 'dry_clean',
+  STEAM_PRESS: 'steam_press',
+  STARCHING: 'starching',
+  PREMIUM_STEAM_PRESS: 'premium_steam_press',
+  PREMIUM_DRY_CLEAN: 'premium_dry_clean',
+  // Legacy services (for backward compatibility)
   WASHING: 'washing',
   DRY_CLEANING: 'dry_cleaning',
   IRONING: 'ironing'
@@ -51,6 +60,7 @@ const ITEM_TYPES = {
   WOMENS_SAREE: 'womens_saree',
   WOMENS_KURTI: 'womens_kurti',
   WOMENS_JEANS: 'womens_jeans',
+  WOMENS_SHIRT: 'womens_shirt',
   
   // Kids
   KIDS_SHIRT: 'kids_shirt',
@@ -59,9 +69,43 @@ const ITEM_TYPES = {
   
   // Household
   BEDSHEET: 'bedsheet',
+  BEDSHEET_SINGLE: 'bedsheet_single',
+  BEDSHEET_DOUBLE: 'bedsheet_double',
   CURTAIN: 'curtain',
+  CURTAINS: 'curtains',
   TOWEL: 'towel',
-  PILLOW_COVER: 'pillow_cover'
+  PILLOW_COVER: 'pillow_cover',
+  
+  // Wash & Fold
+  TROUSERS: 'trousers',
+  
+  // Dry Cleaning
+  FORMAL_SHIRT: 'formal_shirt',
+  SUIT_2PIECE: 'suit_2piece',
+  SAREE_COTTON: 'saree_cotton',
+  SAREE_SILK: 'saree_silk',
+  BLAZER: 'blazer',
+  DRESS_GOWN: 'dress_gown',
+  
+  // Laundry
+  TSHIRT: 'tshirt',
+  SHIRT: 'shirt',
+  JEANS: 'jeans',
+  DRESS: 'dress',
+  
+  // Shoe Cleaning
+  LEATHER_SHOES: 'leather_shoes',
+  SPORTS_SHOES: 'sports_shoes',
+  FORMAL_SHOES: 'formal_shoes',
+  BOOTS: 'boots',
+  SANDALS: 'sandals',
+  
+  // Express
+  SHIRT_EXPRESS: 'shirt_express',
+  SUIT_EXPRESS: 'suit_express',
+  JEANS_EXPRESS: 'jeans_express',
+  SAREE_EXPRESS: 'saree_express',
+  DRESS_EXPRESS: 'dress_express'
 };
 
 // Ticket Status
