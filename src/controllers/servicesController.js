@@ -120,9 +120,51 @@ const getServiceTypes = asyncHandler(async (req, res) => {
   sendSuccess(res, serviceTypes, 'Service types retrieved successfully');
 });
 
+// @desc    Get all active branches for customer selection
+// @route   GET /api/services/branches
+// @access  Public
+const getActiveBranches = asyncHandler(async (req, res) => {
+  const { city, pincode } = req.query;
+
+  const query = { isActive: true };
+
+  // Filter by city if provided
+  if (city) {
+    query['address.city'] = { $regex: city, $options: 'i' };
+  }
+
+  // Filter by pincode if provided
+  if (pincode) {
+    query['serviceAreas.pincode'] = pincode;
+  }
+
+  const branches = await Branch.find(query)
+    .select('name code address contact serviceAreas operatingHours')
+    .sort({ name: 1 });
+
+  const formattedBranches = branches.map(branch => ({
+    _id: branch._id,
+    name: branch.name,
+    code: branch.code,
+    address: {
+      addressLine1: branch.address?.addressLine1,
+      city: branch.address?.city,
+      pincode: branch.address?.pincode
+    },
+    phone: branch.contact?.phone,
+    serviceAreas: branch.serviceAreas?.filter(area => area.isActive).map(area => ({
+      pincode: area.pincode,
+      deliveryCharge: area.deliveryCharge
+    })) || []
+  }));
+
+  sendSuccess(res, { branches: formattedBranches }, 'Branches retrieved successfully');
+});
+
 module.exports = {
   calculatePricing,
   getAvailableTimeSlots,
   checkServiceAvailability,
-  getServiceTypes
+  getServiceTypes,
+  getActiveBranches
 };

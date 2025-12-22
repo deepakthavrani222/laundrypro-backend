@@ -48,59 +48,135 @@ const CLOTHING_CATEGORIES = {
 // Item Types
 const ITEM_TYPES = {
   // Men's
+  SHIRT: 'shirt',
+  T_SHIRT: 't_shirt',
+  TROUSER: 'trouser',
+  JEANS: 'jeans',
+  SUIT_2PC: 'suit_2pc',
+  SUIT_3PC: 'suit_3pc',
+  BLAZER: 'blazer',
+  JACKET: 'jacket',
+  KURTA: 'kurta',
+  SHERWANI: 'sherwani',
+  COAT: 'coat',
+  OVERCOAT: 'overcoat',
+  JACKET_HALF: 'jacket_half',
+  
+  // Women's
+  BLOUSE: 'blouse',
+  TOP: 'top',
+  KURTI: 'kurti',
+  SAREE: 'saree',
+  SAREE_SILK: 'saree_silk',
+  SAREE_COTTON: 'saree_cotton',
+  SAREE_DESIGNER: 'saree_designer',
+  SALWAR_SUIT: 'salwar_suit',
+  LEHENGA: 'lehenga',
+  GOWN: 'gown',
+  DRESS: 'dress',
+  SKIRT: 'skirt',
+  DUPATTA: 'dupatta',
+  
+  // Kids
+  KIDS_SHIRT: 'kids_shirt',
+  KIDS_T_SHIRT: 'kids_t_shirt',
+  KIDS_TROUSER: 'kids_trouser',
+  KIDS_JEANS: 'kids_jeans',
+  FROCK: 'frock',
+  SCHOOL_UNIFORM: 'school_uniform',
+  KIDS_DRESS: 'kids_dress',
+  KIDS_PANT: 'kids_pant',
+  
+  // Household
+  BEDSHEET_SINGLE: 'bedsheet_single',
+  BEDSHEET_DOUBLE: 'bedsheet_double',
+  BLANKET: 'blanket',
+  BLANKET_SINGLE: 'blanket_single',
+  BLANKET_DOUBLE: 'blanket_double',
+  CURTAIN: 'curtain',
+  CURTAIN_SMALL: 'curtain_small',
+  CURTAIN_LARGE: 'curtain_large',
+  PILLOW_COVER: 'pillow_cover',
+  SOFA_COVER: 'sofa_cover',
+  TABLE_CLOTH: 'table_cloth',
+  TOWEL: 'towel',
+  COMFORTER: 'comforter',
+  BEDSHEET: 'bedsheet',
+  CURTAINS: 'curtains',
+  
+  // Institutional
+  HOTEL_BEDSHEET: 'hotel_bedsheet',
+  HOTEL_TOWEL: 'hotel_towel',
+  RESTAURANT_NAPKIN: 'restaurant_napkin',
+  UNIFORM: 'uniform',
+  APRON: 'apron',
+  
+  // Others
+  TIE: 'tie',
+  SCARF: 'scarf',
+  CAP_HAT: 'cap_hat',
+  BAG_FABRIC: 'bag_fabric',
+  BAG_SMALL: 'bag_small',
+  BAG_LARGE: 'bag_large',
+  SOFT_TOY: 'soft_toy',
+  SHOES: 'shoes',
+  LEATHER_JACKET: 'leather_jacket',
+  WOOLEN_SWEATER: 'woolen_sweater',
+  
+  // Premium items from frontend
+  SILK_SHIRT: 'silk_shirt',
+  SILK_SAREE: 'silk_saree',
+  CASHMERE: 'cashmere',
+  LINEN_SHIRT: 'linen_shirt',
+  DESIGNER_DRESS: 'designer_dress',
+  DESIGNER_SUIT: 'designer_suit',
+  BRIDAL_LEHENGA: 'bridal_lehenga',
+  DESIGNER_SAREE: 'designer_saree',
+  LUXURY_COAT: 'luxury_coat',
+  EVENING_GOWN: 'evening_gown',
+  
+  // Steam press items
+  SHIRT_PRESS: 'shirt_press',
+  TROUSERS_PRESS: 'trousers_press',
+  SAREE_PRESS: 'saree_press',
+  SUIT_PRESS: 'suit_press',
+  DRESS_PRESS: 'dress_press',
+  KURTI_PRESS: 'kurti_press',
+  SILK_SAREE_PRESS: 'silk_saree_press',
+  DESIGNER_SUIT_PRESS: 'designer_suit_press',
+  LEHENGA_PRESS: 'lehenga_press',
+  SHERWANI_PRESS: 'sherwani_press',
+  WEDDING_DRESS_PRESS: 'wedding_dress_press',
+  
+  // Starching items
+  COTTON_SHIRT_STARCH: 'cotton_shirt_starch',
+  COTTON_SAREE_STARCH: 'cotton_saree_starch',
+  DHOTI_STARCH: 'dhoti_starch',
+  KURTA_STARCH: 'kurta_starch',
+  BEDSHEET_STARCH: 'bedsheet_starch',
+  
+  // Legacy (backward compatibility)
   MENS_SHIRT: 'mens_shirt',
   MENS_PANT: 'mens_pant',
   MENS_TSHIRT: 'mens_tshirt',
   MENS_JEANS: 'mens_jeans',
   MENS_SUIT: 'mens_suit',
-  
-  // Women's
   WOMENS_DRESS: 'womens_dress',
   WOMENS_BLOUSE: 'womens_blouse',
   WOMENS_SAREE: 'womens_saree',
   WOMENS_KURTI: 'womens_kurti',
   WOMENS_JEANS: 'womens_jeans',
   WOMENS_SHIRT: 'womens_shirt',
-  
-  // Kids
-  KIDS_SHIRT: 'kids_shirt',
-  KIDS_DRESS: 'kids_dress',
-  KIDS_PANT: 'kids_pant',
-  
-  // Household
-  BEDSHEET: 'bedsheet',
-  BEDSHEET_SINGLE: 'bedsheet_single',
-  BEDSHEET_DOUBLE: 'bedsheet_double',
-  CURTAIN: 'curtain',
-  CURTAINS: 'curtains',
-  TOWEL: 'towel',
-  PILLOW_COVER: 'pillow_cover',
-  
-  // Wash & Fold
   TROUSERS: 'trousers',
-  
-  // Dry Cleaning
   FORMAL_SHIRT: 'formal_shirt',
   SUIT_2PIECE: 'suit_2piece',
-  SAREE_COTTON: 'saree_cotton',
-  SAREE_SILK: 'saree_silk',
-  BLAZER: 'blazer',
   DRESS_GOWN: 'dress_gown',
-  
-  // Laundry
   TSHIRT: 'tshirt',
-  SHIRT: 'shirt',
-  JEANS: 'jeans',
-  DRESS: 'dress',
-  
-  // Shoe Cleaning
   LEATHER_SHOES: 'leather_shoes',
   SPORTS_SHOES: 'sports_shoes',
   FORMAL_SHOES: 'formal_shoes',
   BOOTS: 'boots',
   SANDALS: 'sandals',
-  
-  // Express
   SHIRT_EXPRESS: 'shirt_express',
   SUIT_EXPRESS: 'suit_express',
   JEANS_EXPRESS: 'jeans_express',
@@ -202,6 +278,28 @@ const REFUND_LIMITS = {
   [USER_ROLES.CENTER_ADMIN]: Infinity
 };
 
+// OpenRouteService API Configuration
+const OPENROUTE_CONFIG = {
+  BASE_URL: 'https://api.openrouteservice.org',
+  ENDPOINTS: {
+    DIRECTIONS: '/v2/directions/driving-car',
+    GEOCODE: '/geocode/search'
+  },
+  MAX_RETRIES: 3,
+  TIMEOUT: 10000, // 10 seconds
+  DAILY_LIMIT: 2000 // Free tier limit
+};
+
+// Delivery Pricing Defaults
+const DELIVERY_PRICING_DEFAULTS = {
+  BASE_DISTANCE: 3,        // km - free delivery zone
+  PER_KM_RATE: 5,          // ₹ per km after base
+  MAX_DISTANCE: 20,        // km - max serviceable
+  MINIMUM_CHARGE: 0,       // minimum delivery fee
+  EXPRESS_MULTIPLIER: 1.5, // multiplier for express orders
+  FALLBACK_FLAT_RATE: 50   // ₹ flat rate when API fails
+};
+
 module.exports = {
   USER_ROLES,
   ORDER_STATUS,
@@ -218,5 +316,7 @@ module.exports = {
   INVENTORY_ITEMS,
   NOTIFICATION_TYPES,
   CONSUMPTION_RATES,
-  REFUND_LIMITS
+  REFUND_LIMITS,
+  OPENROUTE_CONFIG,
+  DELIVERY_PRICING_DEFAULTS
 };

@@ -39,6 +39,8 @@ const getSupportDashboard = asyncHandler(async (req, res) => {
     todayTickets,
     openTickets,
     inProgressTickets,
+    resolvedTickets,
+    escalatedTickets,
     overdueTickets,
     myAssignedTickets,
     avgResolutionTime
@@ -55,6 +57,14 @@ const getSupportDashboard = asyncHandler(async (req, res) => {
     Ticket.countDocuments({
       ...ticketQuery,
       status: TICKET_STATUS.IN_PROGRESS
+    }),
+    Ticket.countDocuments({
+      ...ticketQuery,
+      status: TICKET_STATUS.RESOLVED
+    }),
+    Ticket.countDocuments({
+      ...ticketQuery,
+      status: TICKET_STATUS.ESCALATED
     }),
     Ticket.countDocuments({
       ...ticketQuery,
@@ -77,14 +87,26 @@ const getSupportDashboard = asyncHandler(async (req, res) => {
     .select('ticketNumber title status priority createdAt');
 
   // Get ticket distribution by category
+  let categoryMatch = {};
+  if (user.role === USER_ROLES.SUPPORT_AGENT) {
+    categoryMatch = {
+      $or: [
+        { assignedTo: user._id },
+        { assignedTo: { $exists: false } },
+        { assignedTo: null }
+      ]
+    };
+  }
+  
   const categoryDistribution = await Ticket.aggregate([
-    { $match: ticketQuery },
+    { $match: categoryMatch },
     {
       $group: {
         _id: '$category',
         count: { $sum: 1 }
       }
-    }
+    },
+    { $sort: { count: -1 } }
   ]);
 
   const dashboardData = {
@@ -93,6 +115,8 @@ const getSupportDashboard = asyncHandler(async (req, res) => {
       todayTickets,
       openTickets,
       inProgressTickets,
+      resolvedTickets,
+      escalatedTickets,
       overdueTickets,
       myAssignedTickets,
       avgResolutionTime
@@ -318,8 +342,8 @@ const escalateTicket = asyncHandler(async (req, res) => {
   const { escalatedTo, reason } = req.body;
   const user = req.user;
 
-  if (!escalatedTo || !reason) {
-    return sendError(res, 'MISSING_DATA', 'Escalated to and reason are required', 400);
+  if (!reason) {
+    return sendError(res, 'MISSING_DATA', 'Reason is required', 400);
   }
 
   const ticket = await Ticket.findById(ticketId);
@@ -327,17 +351,36 @@ const escalateTicket = asyncHandler(async (req, res) => {
     return sendError(res, 'TICKET_NOT_FOUND', 'Ticket not found', 404);
   }
 
-  // Verify escalation target
-  const escalationTarget = await User.findOne({
-    _id: escalatedTo,
-    role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] }
-  });
-
-  if (!escalationTarget) {
-    return sendError(res, 'INVALID_ESCALATION_TARGET', 'Invalid escalation target', 400);
+  let escalationTarget;
+  
+  // If escalatedTo is 'admin' or 'center_admin', find any available admin
+  if (escalatedTo === 'admin' || escalatedTo === 'center_admin' || !escalatedTo) {
+    escalationTarget = await User.findOne({
+      role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] },
+      isActive: { $ne: false }
+    });
+  } else {
+    // Check if it's a valid MongoDB ObjectId
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(escalatedTo)) {
+      escalationTarget = await User.findOne({
+        _id: escalatedTo,
+        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] }
+      });
+    } else {
+      // Try to find by role name
+      escalationTarget = await User.findOne({
+        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] },
+        isActive: { $ne: false }
+      });
+    }
   }
 
-  await ticket.escalate(escalatedTo, reason);
+  if (!escalationTarget) {
+    return sendError(res, 'NO_ADMIN_AVAILABLE', 'No admin available for escalation', 400);
+  }
+
+  await ticket.escalate(escalationTarget._id, reason);
 
   const updatedTicket = await Ticket.findById(ticketId)
     .populate('escalatedTo', 'name email');
@@ -377,6 +420,128 @@ const resolveTicket = asyncHandler(async (req, res) => {
   sendSuccess(res, { ticket: updatedTicket }, 'Ticket resolved successfully');
 });
 
+// @desc    Get customers list
+// @route   GET /api/support/customers
+// @access  Private (Support Agent/Admin)
+const getCustomers = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, search, isVIP } = req.query;
+  const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
+
+  let query = { role: USER_ROLES.CUSTOMER };
+
+  if (search) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { phone: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  if (isVIP === 'true') {
+    query.isVIP = true;
+  }
+
+  const total = await User.countDocuments(query);
+  const customers = await User.find(query)
+    .select('name email phone isVIP addresses createdAt')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limitNum);
+
+  // Get order stats for each customer
+  const customersWithStats = await Promise.all(
+    customers.map(async (customer) => {
+      const orderStats = await Order.aggregate([
+        { $match: { customer: customer._id } },
+        {
+          $group: {
+            _id: null,
+            totalOrders: { $sum: 1 },
+            totalSpent: { $sum: '$totalAmount' },
+            lastOrderDate: { $max: '$createdAt' }
+          }
+        }
+      ]);
+
+      const stats = orderStats[0] || { totalOrders: 0, totalSpent: 0, lastOrderDate: null };
+
+      return {
+        _id: customer._id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        isVIP: customer.isVIP || false,
+        addresses: customer.addresses || [],
+        createdAt: customer.createdAt,
+        totalOrders: stats.totalOrders,
+        totalSpent: stats.totalSpent,
+        lastOrderDate: stats.lastOrderDate
+      };
+    })
+  );
+
+  const response = formatPaginationResponse(customersWithStats, total, pageNum, limitNum);
+  sendSuccess(res, response, 'Customers retrieved successfully');
+});
+
+// @desc    Get customer by ID
+// @route   GET /api/support/customers/:customerId
+// @access  Private (Support Agent/Admin)
+const getCustomerById = asyncHandler(async (req, res) => {
+  const { customerId } = req.params;
+
+  const customer = await User.findOne({ _id: customerId, role: USER_ROLES.CUSTOMER })
+    .select('name email phone isVIP addresses createdAt');
+
+  if (!customer) {
+    return sendError(res, 'CUSTOMER_NOT_FOUND', 'Customer not found', 404);
+  }
+
+  // Get order stats
+  const orderStats = await Order.aggregate([
+    { $match: { customer: customer._id } },
+    {
+      $group: {
+        _id: null,
+        totalOrders: { $sum: 1 },
+        totalSpent: { $sum: '$totalAmount' },
+        lastOrderDate: { $max: '$createdAt' }
+      }
+    }
+  ]);
+
+  const stats = orderStats[0] || { totalOrders: 0, totalSpent: 0, lastOrderDate: null };
+
+  // Get recent orders
+  const recentOrders = await Order.find({ customer: customerId })
+    .select('orderNumber status totalAmount createdAt')
+    .sort({ createdAt: -1 })
+    .limit(5);
+
+  // Get tickets raised by customer
+  const tickets = await Ticket.find({ raisedBy: customerId })
+    .select('ticketNumber title status priority createdAt')
+    .sort({ createdAt: -1 })
+    .limit(5);
+
+  sendSuccess(res, {
+    customer: {
+      _id: customer._id,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      isVIP: customer.isVIP || false,
+      addresses: customer.addresses || [],
+      createdAt: customer.createdAt,
+      totalOrders: stats.totalOrders,
+      totalSpent: stats.totalSpent,
+      lastOrderDate: stats.lastOrderDate
+    },
+    recentOrders,
+    tickets
+  }, 'Customer details retrieved successfully');
+});
+
 module.exports = {
   getSupportDashboard,
   getTickets,
@@ -385,5 +550,7 @@ module.exports = {
   assignTicket,
   addMessageToTicket,
   escalateTicket,
-  resolveTicket
+  resolveTicket,
+  getCustomers,
+  getCustomerById
 };

@@ -8,7 +8,9 @@ const {
   assignTicket,
   addMessageToTicket,
   escalateTicket,
-  resolveTicket
+  resolveTicket,
+  getCustomers,
+  getCustomerById
 } = require('../../controllers/support/supportController');
 
 const router = express.Router();
@@ -18,6 +20,10 @@ router.use(protect);
 
 // Dashboard
 router.get('/dashboard', getSupportDashboard);
+
+// Customers
+router.get('/customers', getCustomers);
+router.get('/customers/:customerId', getCustomerById);
 
 // Tickets
 router.get('/tickets', getTickets);

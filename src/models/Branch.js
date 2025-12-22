@@ -32,6 +32,33 @@ const branchSchema = new mongoose.Schema({
     uppercase: true,
     trim: true
   },
+  // Top-level coordinates for distance calculations
+  coordinates: {
+    latitude: {
+      type: Number,
+      min: [-90, 'Latitude must be between -90 and 90'],
+      max: [90, 'Latitude must be between -90 and 90']
+    },
+    longitude: {
+      type: Number,
+      min: [-180, 'Longitude must be between -180 and 180'],
+      max: [180, 'Longitude must be between -180 and 180']
+    }
+  },
+  // Maximum serviceable distance from this branch (in km)
+  serviceableRadius: {
+    type: Number,
+    default: 20,
+    min: 1,
+    max: 100
+  },
+  // Branch-specific delivery pricing override
+  deliveryPricingOverride: {
+    enabled: { type: Boolean, default: false },
+    baseDistance: { type: Number },
+    perKmRate: { type: Number },
+    maxDistance: { type: Number }
+  },
   address: {
     addressLine1: { type: String, required: true },
     addressLine2: String,

@@ -29,6 +29,9 @@ const centerAdminAuditRoutes = require('./routes/centerAdminAudit');
 const centerAdminLogisticsRoutes = require('./routes/centerAdminLogistics');
 const centerAdminOrdersRoutes = require('./routes/centerAdminOrders');
 const centerAdminUsersRoutes = require('./routes/centerAdminUsers');
+const servicePricesRoutes = require('./routes/servicePrices');
+const serviceItemsRoutes = require('./routes/serviceItems');
+const deliveryRoutes = require('./routes/delivery');
 
 const app = express();
 
@@ -88,6 +91,9 @@ app.use('/api/center-admin/audit', centerAdminAuditRoutes);
 app.use('/api/center-admin/logistics', centerAdminLogisticsRoutes);
 app.use('/api/center-admin/orders', centerAdminOrdersRoutes);
 app.use('/api/center-admin/users', centerAdminUsersRoutes);
+app.use('/api/service-prices', servicePricesRoutes);
+app.use('/api/service-items', serviceItemsRoutes);
+app.use('/api/delivery', deliveryRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

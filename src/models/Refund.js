@@ -4,8 +4,8 @@ const { REFUND_STATUS, REFUND_TYPES } = require('../config/constants');
 const refundSchema = new mongoose.Schema({
   refundNumber: {
     type: String,
-    required: true,
-    unique: true
+    unique: true,
+    sparse: true
   },
   order: {
     type: mongoose.Schema.Types.ObjectId,

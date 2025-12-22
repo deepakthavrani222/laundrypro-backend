@@ -7,45 +7,29 @@ const {
   getPagination,
   formatPaginationResponse
 } = require('../../utils/helpers');
-const { TICKET_STATUS, TICKET_PRIORITY } = require('../../config/constants');
+const { TICKET_STATUS, TICKET_CATEGORIES } = require('../../config/constants');
 
-// @desc    Get customer tickets
-// @route   GET /api/customer/tickets
-// @access  Private (Customer)
-const getCustomerTickets = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status } = req.query;
-  const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
-
-  const query = { raisedBy: req.user._id };
-  if (status) query.status = status;
-
-  const total = await Ticket.countDocuments(query);
-  const tickets = await Ticket.find(query)
-    .populate('assignedTo', 'name')
-    .populate('relatedOrder', 'orderNumber status')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum)
-    .select('-messages'); // Exclude messages from list view
-
-  const response = formatPaginationResponse(tickets, total, pageNum, limitNum);
-  sendSuccess(res, response, 'Tickets retrieved successfully');
-});
-
-// @desc    Create new ticket
+// @desc    Create a new ticket
 // @route   POST /api/customer/tickets
 // @access  Private (Customer)
 const createTicket = asyncHandler(async (req, res) => {
-  const { title, description, category, priority, relatedOrderId } = req.body;
+  const { title, description, category, relatedOrderId } = req.body;
+  const customerId = req.user._id;
 
-  // Validate related order if provided
+  if (!title || !description || !category) {
+    return sendError(res, 'MISSING_FIELDS', 'Title, description and category are required', 400);
+  }
+
+  // Validate category
+  if (!Object.values(TICKET_CATEGORIES).includes(category)) {
+    return sendError(res, 'INVALID_CATEGORY', 'Invalid ticket category', 400);
+  }
+
+  // If related order provided, verify it belongs to customer
+  let relatedOrder = null;
   if (relatedOrderId) {
-    const order = await Order.findOne({
-      _id: relatedOrderId,
-      customer: req.user._id
-    });
-
-    if (!order) {
+    relatedOrder = await Order.findOne({ _id: relatedOrderId, customer: customerId });
+    if (!relatedOrder) {
       return sendError(res, 'ORDER_NOT_FOUND', 'Related order not found', 404);
     }
   }
@@ -54,107 +38,141 @@ const createTicket = asyncHandler(async (req, res) => {
     title,
     description,
     category,
-    priority: priority || TICKET_PRIORITY.MEDIUM,
-    raisedBy: req.user._id,
-    relatedOrder: relatedOrderId || undefined
+    raisedBy: customerId,
+    relatedOrder: relatedOrderId || undefined,
+    status: TICKET_STATUS.OPEN,
+    messages: [{
+      sender: customerId,
+      message: description,
+      isInternal: false,
+      timestamp: new Date()
+    }]
   });
 
   const populatedTicket = await Ticket.findById(ticket._id)
+    .populate('raisedBy', 'name email')
     .populate('relatedOrder', 'orderNumber status');
 
   sendSuccess(res, { ticket: populatedTicket }, 'Ticket created successfully', 201);
 });
 
-// @desc    Get ticket by ID
+// @desc    Get customer's tickets
+// @route   GET /api/customer/tickets
+// @access  Private (Customer)
+const getTickets = asyncHandler(async (req, res) => {
+  const customerId = req.user._id;
+  const { page = 1, limit = 10, status } = req.query;
+  const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
+
+  let query = { raisedBy: customerId };
+  if (status) {
+    query.status = status;
+  }
+
+  const total = await Ticket.countDocuments(query);
+  const tickets = await Ticket.find(query)
+    .populate('relatedOrder', 'orderNumber status totalAmount')
+    .populate('assignedTo', 'name')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limitNum)
+    .select('ticketNumber title category status priority createdAt updatedAt relatedOrder');
+
+  const response = formatPaginationResponse(tickets, total, pageNum, limitNum);
+  sendSuccess(res, response, 'Tickets retrieved successfully');
+});
+
+// @desc    Get single ticket
 // @route   GET /api/customer/tickets/:ticketId
 // @access  Private (Customer)
 const getTicketById = asyncHandler(async (req, res) => {
   const { ticketId } = req.params;
+  const customerId = req.user._id;
 
-  const ticket = await Ticket.findOne({
-    _id: ticketId,
-    raisedBy: req.user._id
-  })
+  const ticket = await Ticket.findOne({ _id: ticketId, raisedBy: customerId })
+    .populate('raisedBy', 'name email phone')
     .populate('assignedTo', 'name')
-    .populate('resolvedBy', 'name')
-    .populate('relatedOrder', 'orderNumber status')
+    .populate('relatedOrder', 'orderNumber status totalAmount createdAt')
     .populate('messages.sender', 'name role');
 
   if (!ticket) {
     return sendError(res, 'TICKET_NOT_FOUND', 'Ticket not found', 404);
   }
 
-  // Filter out internal messages for customer
-  const filteredTicket = ticket.toObject();
-  filteredTicket.messages = ticket.messages.filter(msg => !msg.isInternal);
+  // Filter out internal messages (customer shouldn't see internal notes)
+  const filteredMessages = ticket.messages.filter(msg => !msg.isInternal);
+  const ticketObj = ticket.toObject();
+  ticketObj.messages = filteredMessages;
 
-  sendSuccess(res, { ticket: filteredTicket }, 'Ticket retrieved successfully');
+  sendSuccess(res, { ticket: ticketObj }, 'Ticket retrieved successfully');
 });
 
 // @desc    Add message to ticket
 // @route   POST /api/customer/tickets/:ticketId/messages
 // @access  Private (Customer)
-const addMessageToTicket = asyncHandler(async (req, res) => {
+const addMessage = asyncHandler(async (req, res) => {
   const { ticketId } = req.params;
   const { message } = req.body;
+  const customerId = req.user._id;
 
-  const ticket = await Ticket.findOne({
-    _id: ticketId,
-    raisedBy: req.user._id
-  });
+  if (!message) {
+    return sendError(res, 'MESSAGE_REQUIRED', 'Message is required', 400);
+  }
+
+  const ticket = await Ticket.findOne({ _id: ticketId, raisedBy: customerId });
 
   if (!ticket) {
     return sendError(res, 'TICKET_NOT_FOUND', 'Ticket not found', 404);
   }
 
-  if (ticket.status === TICKET_STATUS.CLOSED) {
-    return sendError(res, 'TICKET_CLOSED', 'Cannot add message to closed ticket', 400);
+  if (ticket.status === TICKET_STATUS.RESOLVED || ticket.status === TICKET_STATUS.CLOSED) {
+    return sendError(res, 'TICKET_CLOSED', 'Cannot add message to resolved/closed ticket', 400);
   }
 
-  await ticket.addMessage(req.user._id, message, false);
-
-  // If ticket was resolved, move it back to in progress
-  if (ticket.status === TICKET_STATUS.RESOLVED) {
-    ticket.status = TICKET_STATUS.IN_PROGRESS;
-    await ticket.save();
-  }
+  await ticket.addMessage(customerId, message, false);
 
   const updatedTicket = await Ticket.findById(ticketId)
     .populate('messages.sender', 'name role')
-    .select('messages status');
+    .select('messages');
 
   // Filter out internal messages
   const filteredMessages = updatedTicket.messages.filter(msg => !msg.isInternal);
 
-  sendSuccess(res, { 
-    messages: filteredMessages,
-    status: updatedTicket.status
-  }, 'Message added successfully');
+  sendSuccess(res, { messages: filteredMessages }, 'Message added successfully');
 });
 
-// @desc    Rate ticket resolution
-// @route   PUT /api/customer/tickets/:ticketId/rate
+// @desc    Get ticket categories
+// @route   GET /api/customer/tickets/categories
 // @access  Private (Customer)
-const rateTicketResolution = asyncHandler(async (req, res) => {
+const getCategories = asyncHandler(async (req, res) => {
+  const categories = Object.entries(TICKET_CATEGORIES).map(([key, value]) => ({
+    id: value,
+    name: value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }));
+
+  sendSuccess(res, { categories }, 'Categories retrieved successfully');
+});
+
+// @desc    Submit feedback for resolved ticket
+// @route   POST /api/customer/tickets/:ticketId/feedback
+// @access  Private (Customer)
+const submitFeedback = asyncHandler(async (req, res) => {
   const { ticketId } = req.params;
   const { rating, comment } = req.body;
+  const customerId = req.user._id;
 
   if (!rating || rating < 1 || rating > 5) {
     return sendError(res, 'INVALID_RATING', 'Rating must be between 1 and 5', 400);
   }
 
-  const ticket = await Ticket.findOne({
-    _id: ticketId,
-    raisedBy: req.user._id,
-    status: TICKET_STATUS.RESOLVED
-  });
+  const ticket = await Ticket.findOne({ _id: ticketId, raisedBy: customerId });
 
   if (!ticket) {
-    return sendError(res, 'TICKET_NOT_FOUND', 'Ticket not found or not resolved', 404);
+    return sendError(res, 'TICKET_NOT_FOUND', 'Ticket not found', 404);
   }
 
-  if (ticket.feedback.rating) {
-    return sendError(res, 'ALREADY_RATED', 'Ticket has already been rated', 400);
+  if (ticket.status !== TICKET_STATUS.RESOLVED) {
+    return sendError(res, 'TICKET_NOT_RESOLVED', 'Can only submit feedback for resolved tickets', 400);
   }
 
   ticket.feedback = {
@@ -163,18 +181,16 @@ const rateTicketResolution = asyncHandler(async (req, res) => {
     submittedAt: new Date()
   };
 
-  ticket.status = TICKET_STATUS.CLOSED;
   await ticket.save();
 
-  sendSuccess(res, { 
-    feedback: ticket.feedback 
-  }, 'Ticket rated successfully');
+  sendSuccess(res, { ticket }, 'Feedback submitted successfully');
 });
 
 module.exports = {
-  getCustomerTickets,
   createTicket,
+  getTickets,
   getTicketById,
-  addMessageToTicket,
-  rateTicketResolution
+  addMessage,
+  getCategories,
+  submitFeedback
 };

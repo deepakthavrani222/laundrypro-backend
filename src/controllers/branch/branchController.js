@@ -1,6 +1,7 @@
 const Order = require('../../models/Order');
 const User = require('../../models/User');
 const Branch = require('../../models/Branch');
+const OrderService = require('../../services/orderService');
 const { 
   sendSuccess, 
   sendError, 
@@ -200,18 +201,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     return sendError(res, 'INVALID_TRANSITION', `Cannot change status from ${order.status} to ${status}`, 400);
   }
 
-  order.status = status;
-  if (!order.statusHistory) order.statusHistory = [];
-  order.statusHistory.push({
-    status,
-    updatedBy: user._id,
-    updatedAt: new Date(),
-    notes: notes || `Status updated by branch manager`
-  });
-  
-  await order.save();
+  // Use OrderService to update status and send notifications
+  await OrderService.updateOrderStatus(orderId, status, user._id, notes || 'Status updated by branch manager');
 
-  sendSuccess(res, { order }, 'Order status updated successfully');
+  const updatedOrder = await Order.findById(orderId)
+    .populate('customer', 'name phone')
+    .populate('branch', 'name code');
+
+  sendSuccess(res, { order: updatedOrder }, 'Order status updated successfully');
 });
 
 // @desc    Assign staff to order

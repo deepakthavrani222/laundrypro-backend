@@ -9,8 +9,9 @@ const orderItemSchema = new mongoose.Schema({
   },
   itemType: {
     type: String,
-    enum: Object.values(ITEM_TYPES),
     required: true
+    // Removed enum validation to allow dynamic items from database
+    // Validation is done at API level against ServiceItem collection
   },
   service: {
     type: String,

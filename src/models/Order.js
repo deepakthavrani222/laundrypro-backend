@@ -78,6 +78,30 @@ const orderSchema = new mongoose.Schema({
       required: true
     }
   },
+  // Distance-based delivery details
+  deliveryDetails: {
+    distance: {
+      type: Number,  // Distance in km
+      default: 0
+    },
+    deliveryCharge: {
+      type: Number,  // Calculated delivery charge
+      default: 0
+    },
+    calculatedAt: {
+      type: Date
+    },
+    isFallbackPricing: {
+      type: Boolean,
+      default: false
+    },
+    // Snapshot of pricing config at order time (for audit)
+    pricingSnapshot: {
+      baseDistance: Number,
+      perKmRate: Number,
+      maxDistance: Number
+    }
+  },
   // Payment
   paymentMethod: {
     type: String,
