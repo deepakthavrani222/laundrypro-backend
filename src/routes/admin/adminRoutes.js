@@ -27,8 +27,29 @@ const {
   getAnalytics,
   getStaff,
   toggleStaffStatus,
-  getBranches
+  getBranches,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationsAsRead,
+  markAllNotificationsAsRead
 } = require('../../controllers/admin/adminController');
+
+const {
+  getWeeklyOrders,
+  getOrderStatusDistribution,
+  getRevenueData,
+  getHourlyOrders,
+  getServiceDistribution
+} = require('../../controllers/admin/analyticsController');
+
+const {
+  getDeliveryPricing,
+  updateDeliveryPricing,
+  updateBranchCoordinates,
+  getBranchCoordinates,
+  getBranchesCoordinatesStatus,
+  updateBranchDeliveryPricing
+} = require('../../controllers/admin/deliveryPricingController');
 
 const router = express.Router();
 
@@ -37,6 +58,13 @@ router.use(protect);
 
 // Dashboard routes
 router.get('/dashboard', getDashboard);
+
+// Analytics routes for charts
+router.get('/analytics/weekly-orders', getWeeklyOrders);
+router.get('/analytics/order-status', getOrderStatusDistribution);
+router.get('/analytics/revenue', getRevenueData);
+router.get('/analytics/hourly-orders', getHourlyOrders);
+router.get('/analytics/service-distribution', getServiceDistribution);
 
 // Order management routes
 router.get('/orders', getAllOrders);
@@ -81,5 +109,19 @@ router.patch('/staff/:userId/status', toggleStaffStatus);
 
 // Branch management routes
 router.get('/branches', getBranches);
+router.get('/branches/coordinates-status', getBranchesCoordinatesStatus);
+router.get('/branches/:branchId/coordinates', getBranchCoordinates);
+router.put('/branches/:branchId/coordinates', updateBranchCoordinates);
+router.put('/branches/:branchId/delivery-pricing', updateBranchDeliveryPricing);
+
+// Delivery pricing routes
+router.get('/delivery-pricing', getDeliveryPricing);
+router.put('/delivery-pricing', updateDeliveryPricing);
+
+// Notification routes
+router.get('/notifications', getNotifications);
+router.get('/notifications/unread-count', getUnreadNotificationCount);
+router.put('/notifications/mark-read', markNotificationsAsRead);
+router.put('/notifications/mark-all-read', markAllNotificationsAsRead);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const OrderItem = require('../../models/OrderItem');
 const User = require('../../models/User');
 const Address = require('../../models/Address');
 const Branch = require('../../models/Branch');
+const NotificationService = require('../../services/notificationService');
 const { 
   sendSuccess, 
   sendError, 
@@ -27,7 +28,9 @@ const createOrder = asyncHandler(async (req, res) => {
     pickupTimeSlot,
     paymentMethod,
     isExpress,
-    specialInstructions
+    specialInstructions,
+    branchId, // Customer selected branch
+    deliveryDetails // Distance-based delivery details from frontend
   } = req.body;
 
   const customer = await User.findById(req.user._id);
@@ -40,39 +43,49 @@ const createOrder = asyncHandler(async (req, res) => {
     return sendError(res, 'ADDRESS_NOT_FOUND', 'Pickup or delivery address not found', 404);
   }
 
-  // Find available branch for pickup pincode (or use default branch if none found)
-  let branch = await Branch.findOne({
-    'serviceAreas.pincode': pickupAddress.pincode,
-    isActive: true
-  });
+  let branch;
 
-  // If no branch found for pincode, get any active branch (for demo purposes)
-  if (!branch) {
-    branch = await Branch.findOne({ isActive: true });
-  }
-
-  // If still no branch, create a default one for demo
-  if (!branch) {
-    branch = await Branch.create({
-      name: 'Main Branch',
-      code: 'MAIN001',
-      address: {
-        addressLine1: 'Demo Address',
-        city: pickupAddress.city,
-        state: 'India',
-        pincode: pickupAddress.pincode
-      },
-      contact: {
-        phone: '9999999999',
-        email: 'branch@demo.com'
-      },
-      serviceAreas: [{
-        pincode: pickupAddress.pincode,
-        deliveryCharge: 30,
-        isActive: true
-      }],
+  // If customer selected a branch, use that
+  if (branchId) {
+    branch = await Branch.findOne({ _id: branchId, isActive: true });
+    if (!branch) {
+      return sendError(res, 'BRANCH_NOT_FOUND', 'Selected branch not found or inactive', 404);
+    }
+  } else {
+    // Find available branch for pickup pincode (or use default branch if none found)
+    branch = await Branch.findOne({
+      'serviceAreas.pincode': pickupAddress.pincode,
       isActive: true
     });
+
+    // If no branch found for pincode, get any active branch (for demo purposes)
+    if (!branch) {
+      branch = await Branch.findOne({ isActive: true });
+    }
+
+    // If still no branch, create a default one for demo
+    if (!branch) {
+      branch = await Branch.create({
+        name: 'Main Branch',
+        code: 'MAIN001',
+        address: {
+          addressLine1: 'Demo Address',
+          city: pickupAddress.city,
+          state: 'India',
+          pincode: pickupAddress.pincode
+        },
+        contact: {
+          phone: '9999999999',
+          email: 'branch@demo.com'
+        },
+        serviceAreas: [{
+          pincode: pickupAddress.pincode,
+          deliveryCharge: 30,
+          isActive: true
+        }],
+        isActive: true
+      });
+    }
   }
 
   // Calculate pricing for each item
@@ -100,7 +113,16 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   // Calculate order total
-  const deliveryCharge = branch.serviceAreas.find(area => area.pincode === pickupAddress.pincode)?.deliveryCharge || 30;
+  // Use delivery charge from distance calculation if available, otherwise use branch service area charge
+  let deliveryCharge = 30; // default
+  if (deliveryDetails && typeof deliveryDetails.deliveryCharge === 'number') {
+    deliveryCharge = deliveryDetails.deliveryCharge;
+  } else {
+    const serviceArea = branch.serviceAreas.find(area => area.pincode === pickupAddress.pincode);
+    if (serviceArea) {
+      deliveryCharge = serviceArea.deliveryCharge;
+    }
+  }
   const pricing = calculateOrderTotal(items, deliveryCharge, 0, 0.18); // 18% tax
 
   // Generate order number
@@ -138,6 +160,13 @@ const createOrder = asyncHandler(async (req, res) => {
     isExpress,
     isVIPOrder: customer.isVIP,
     specialInstructions,
+    // Save distance-based delivery details if provided
+    deliveryDetails: deliveryDetails ? {
+      distance: deliveryDetails.distance,
+      deliveryCharge: deliveryDetails.deliveryCharge,
+      isFallbackPricing: deliveryDetails.isFallbackPricing || false,
+      calculatedAt: new Date()
+    } : undefined,
     statusHistory: [{
       status: ORDER_STATUS.PLACED,
       updatedBy: req.user._id,
@@ -171,6 +200,13 @@ const createOrder = asyncHandler(async (req, res) => {
   const populatedOrder = await Order.findById(order._id)
     .populate('items')
     .populate('branch', 'name code');
+
+  // Create notification for customer
+  try {
+    await NotificationService.notifyOrderPlaced(req.user._id, order);
+  } catch (error) {
+    console.log('Failed to create notification:', error.message);
+  }
 
   sendSuccess(res, { order: populatedOrder }, 'Order created successfully', 201);
 });

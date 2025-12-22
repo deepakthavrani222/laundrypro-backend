@@ -4,7 +4,6 @@ const { TICKET_STATUS, TICKET_PRIORITY, TICKET_CATEGORIES } = require('../config
 const ticketSchema = new mongoose.Schema({
   ticketNumber: {
     type: String,
-    required: true,
     unique: true
   },
   title: {

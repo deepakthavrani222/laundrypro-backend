@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { verifyAccessToken } = require('../utils/jwt');
+const CenterAdmin = require('../models/CenterAdmin');
+const { verifyAccessToken, verifyToken } = require('../utils/jwt');
 
 // Protect routes - require authentication
 const protect = async (req, res, next) => {
@@ -43,6 +44,65 @@ const protect = async (req, res, next) => {
       // Add user to request object
       req.user = user;
       next();
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error in authentication'
+    });
+  }
+};
+
+// Protect routes - accepts both regular user and center admin tokens
+const protectAny = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
+    }
+
+    try {
+      // Use verifyToken (not verifyAccessToken) to accept both token types
+      const decoded = verifyToken(token);
+      
+      // Check if it's a center admin token (has adminId)
+      if (decoded.adminId) {
+        const admin = await CenterAdmin.findById(decoded.adminId).select('-password');
+        if (admin && admin.isActive) {
+          req.user = admin;
+          req.isCenterAdmin = true;
+          return next();
+        }
+      }
+      
+      // Try as regular user (has userId)
+      if (decoded.userId) {
+        const user = await User.findById(decoded.userId).select('-password');
+        if (user && user.isActive) {
+          req.user = user;
+          req.isCenterAdmin = false;
+          return next();
+        }
+      }
+
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token or user not found'
+      });
     } catch (error) {
       return res.status(401).json({
         success: false,
@@ -115,6 +175,7 @@ const optionalAuth = async (req, res, next) => {
 
 module.exports = {
   protect,
+  protectAny,
   restrictTo,
   requireEmailVerification,
   optionalAuth

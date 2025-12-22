@@ -4,6 +4,7 @@ const Branch = require('../../models/Branch');
 const LogisticsPartner = require('../../models/LogisticsPartner');
 const Ticket = require('../../models/Ticket');
 const Refund = require('../../models/Refund');
+const OrderService = require('../../services/orderService');
 const { 
   sendSuccess, 
   sendError, 
@@ -233,18 +234,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const { status, notes } = req.body;
 
-  const order = await Order.findById(orderId);
-  if (!order) {
-    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found', 404);
-  }
-
-  // Validate status transition
+  // Validate status
   const validStatuses = Object.values(ORDER_STATUS);
   if (!validStatuses.includes(status)) {
     return sendError(res, 'INVALID_STATUS', 'Invalid order status', 400);
   }
 
-  await order.updateStatus(status, req.user._id, notes || `Status updated by admin`);
+  // Use OrderService to update status and send notifications
+  const order = await OrderService.updateOrderStatus(orderId, status, req.user._id, notes || 'Status updated by admin');
 
   const updatedOrder = await Order.findById(orderId)
     .populate('customer', 'name phone')
@@ -1117,6 +1114,63 @@ const getBranches = asyncHandler(async (req, res) => {
   }, 'Branches retrieved successfully');
 });
 
+// @desc    Get admin notifications
+// @route   GET /api/admin/notifications
+// @access  Private (Admin)
+const getNotifications = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, unreadOnly } = req.query;
+  const NotificationService = require('../../services/notificationService');
+  
+  const result = await NotificationService.getUserNotifications(req.user._id, {
+    page: parseInt(page),
+    limit: parseInt(limit),
+    unreadOnly: unreadOnly === 'true'
+  });
+
+  sendSuccess(res, result, 'Notifications retrieved successfully');
+});
+
+// @desc    Get unread notification count
+// @route   GET /api/admin/notifications/unread-count
+// @access  Private (Admin)
+const getUnreadNotificationCount = asyncHandler(async (req, res) => {
+  const NotificationService = require('../../services/notificationService');
+  
+  const result = await NotificationService.getUserNotifications(req.user._id, {
+    page: 1,
+    limit: 1
+  });
+
+  sendSuccess(res, { unreadCount: result.unreadCount }, 'Unread count retrieved successfully');
+});
+
+// @desc    Mark notifications as read
+// @route   PUT /api/admin/notifications/mark-read
+// @access  Private (Admin)
+const markNotificationsAsRead = asyncHandler(async (req, res) => {
+  const { notificationIds } = req.body;
+  const NotificationService = require('../../services/notificationService');
+
+  if (!notificationIds || !Array.isArray(notificationIds)) {
+    return sendError(res, 'INVALID_DATA', 'Notification IDs array is required', 400);
+  }
+
+  await NotificationService.markAsRead(req.user._id, notificationIds);
+
+  sendSuccess(res, null, 'Notifications marked as read');
+});
+
+// @desc    Mark all notifications as read
+// @route   PUT /api/admin/notifications/mark-all-read
+// @access  Private (Admin)
+const markAllNotificationsAsRead = asyncHandler(async (req, res) => {
+  const NotificationService = require('../../services/notificationService');
+  
+  await NotificationService.markAllAsRead(req.user._id);
+
+  sendSuccess(res, null, 'All notifications marked as read');
+});
+
 module.exports = {
   getDashboard,
   getAllOrders,
@@ -1144,5 +1198,9 @@ module.exports = {
   getAnalytics,
   getStaff,
   toggleStaffStatus,
-  getBranches
+  getBranches,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationsAsRead,
+  markAllNotificationsAsRead
 };

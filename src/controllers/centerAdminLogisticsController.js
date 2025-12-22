@@ -64,15 +64,27 @@ exports.createPartner = async (req, res) => {
     const partner = new LogisticsPartner(req.body);
     await partner.save();
     
-    // Audit log
-    await AuditLog.create({
-      action: 'CREATE',
-      resource: 'LogisticsPartner',
-      resourceId: partner._id,
-      performedBy: req.admin._id,
-      performedByModel: 'CenterAdmin',
-      details: { companyName: partner.companyName }
-    });
+    // Audit log with correct format
+    try {
+      await AuditLog.logAction({
+        userId: req.admin._id,
+        userType: 'center_admin',
+        userEmail: req.admin.email,
+        action: 'create_logistics_partner',
+        category: 'settings',
+        description: `Created logistics partner: ${partner.companyName}`,
+        ipAddress: req.ip || req.connection?.remoteAddress || '127.0.0.1',
+        userAgent: req.get('User-Agent'),
+        resourceType: 'logistics_partner',
+        resourceId: partner._id.toString(),
+        status: 'success',
+        riskLevel: 'low',
+        metadata: { companyName: partner.companyName }
+      });
+    } catch (auditError) {
+      console.error('Audit log error:', auditError);
+      // Don't fail the request if audit log fails
+    }
     
     res.status(201).json({ success: true, data: partner });
   } catch (error) {
@@ -94,14 +106,26 @@ exports.updatePartner = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
     
-    await AuditLog.create({
-      action: 'UPDATE',
-      resource: 'LogisticsPartner',
-      resourceId: partner._id,
-      performedBy: req.admin._id,
-      performedByModel: 'CenterAdmin',
-      details: { companyName: partner.companyName }
-    });
+    // Audit log with correct format
+    try {
+      await AuditLog.logAction({
+        userId: req.admin._id,
+        userType: 'center_admin',
+        userEmail: req.admin.email,
+        action: 'update_logistics_partner',
+        category: 'settings',
+        description: `Updated logistics partner: ${partner.companyName}`,
+        ipAddress: req.ip || req.connection?.remoteAddress || '127.0.0.1',
+        userAgent: req.get('User-Agent'),
+        resourceType: 'logistics_partner',
+        resourceId: partner._id.toString(),
+        status: 'success',
+        riskLevel: 'low',
+        metadata: { companyName: partner.companyName }
+      });
+    } catch (auditError) {
+      console.error('Audit log error:', auditError);
+    }
     
     res.json({ success: true, data: partner });
   } catch (error) {

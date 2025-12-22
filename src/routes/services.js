@@ -3,7 +3,8 @@ const {
   calculatePricing,
   getAvailableTimeSlots,
   checkServiceAvailability,
-  getServiceTypes
+  getServiceTypes,
+  getActiveBranches
 } = require('../controllers/servicesController');
 
 const router = express.Router();
@@ -12,5 +13,6 @@ router.post('/calculate', calculatePricing);
 router.get('/time-slots', getAvailableTimeSlots);
 router.get('/availability/:pincode', checkServiceAvailability);
 router.get('/types', getServiceTypes);
+router.get('/branches', getActiveBranches);
 
 module.exports = router;
