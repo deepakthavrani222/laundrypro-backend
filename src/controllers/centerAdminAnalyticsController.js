@@ -6,6 +6,88 @@ const Branch = require('../models/Branch')
 const AuditLog = require('../models/AuditLog')
 const { validationResult } = require('express-validator')
 
+// Helper functions (outside class to avoid 'this' context issues)
+function generateRetentionInsights(cohortData) {
+  const insights = []
+  
+  if (cohortData && cohortData.length > 0) {
+    const avgRetention1Month = cohortData.reduce((sum, c) => 
+      sum + (c.retentionRates[0]?.retentionRate || 0), 0) / cohortData.length
+    
+    const avgRetention6Month = cohortData.reduce((sum, c) => 
+      sum + (c.retentionRates[5]?.retentionRate || 0), 0) / cohortData.length
+
+    insights.push({
+      category: 'retention',
+      insight: `Average 1-month retention rate is ${avgRetention1Month.toFixed(1)}%`,
+      impact: avgRetention1Month > 80 ? 'high' : avgRetention1Month > 60 ? 'medium' : 'low',
+      actionable: avgRetention1Month < 70,
+      recommendedActions: avgRetention1Month < 70 ? [
+        'Implement onboarding program for new customers',
+        'Create loyalty rewards program',
+        'Improve customer service response times'
+      ] : []
+    })
+
+    insights.push({
+      category: 'retention',
+      insight: `Average 6-month retention rate is ${avgRetention6Month.toFixed(1)}%`,
+      impact: avgRetention6Month > 50 ? 'high' : avgRetention6Month > 30 ? 'medium' : 'low',
+      actionable: avgRetention6Month < 40,
+      recommendedActions: avgRetention6Month < 40 ? [
+        'Analyze churn reasons and address top issues',
+        'Implement win-back campaigns for inactive customers',
+        'Enhance service quality and consistency'
+      ] : []
+    })
+  }
+
+  return insights
+}
+
+function generateBranchInsights(branchPerformance) {
+  const insights = []
+  
+  if (branchPerformance && branchPerformance.length > 0) {
+    const sortedByRevenue = [...branchPerformance].sort((a, b) => b.totalRevenue - a.totalRevenue)
+    const topPerformer = sortedByRevenue[0]
+    const bottomPerformer = sortedByRevenue[sortedByRevenue.length - 1]
+
+    insights.push({
+      category: 'performance',
+      insight: `${topPerformer.branchName} is the top performing branch with ₹${topPerformer.totalRevenue.toLocaleString()} revenue`,
+      impact: 'high',
+      actionable: true,
+      recommendedActions: [
+        'Analyze success factors of top performing branch',
+        'Replicate best practices across other branches',
+        'Consider expanding capacity at high-performing locations'
+      ]
+    })
+
+    if (bottomPerformer.totalRevenue < topPerformer.totalRevenue * 0.5) {
+      insights.push({
+        category: 'performance',
+        insight: `${bottomPerformer.branchName} is underperforming with only ₹${bottomPerformer.totalRevenue.toLocaleString()} revenue`,
+        impact: 'high',
+        actionable: true,
+        recommendedActions: [
+          'Investigate operational issues at underperforming branch',
+          'Provide additional training and support',
+          'Consider marketing initiatives to increase local awareness'
+        ]
+      })
+    }
+  }
+
+  return insights
+}
+
+function calculateGrowthRate(current, previous) {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return ((current - previous) / previous) * 100
+}
+
 class CenterAdminAnalyticsController {
   // Get analytics dashboard overview
   async getAnalyticsOverview(req, res) {
@@ -38,10 +120,10 @@ class CenterAdminAnalyticsController {
 
       // Get key business metrics
       const [customerMetrics, revenueMetrics, orderMetrics, branchMetrics] = await Promise.all([
-        this.getCustomerMetrics(startDate, endDate),
-        this.getRevenueMetrics(startDate, endDate),
-        this.getOrderMetrics(startDate, endDate),
-        this.getBranchMetrics(startDate, endDate)
+        getCustomerMetrics(startDate, endDate),
+        getRevenueMetrics(startDate, endDate),
+        getOrderMetrics(startDate, endDate),
+        getBranchMetrics(startDate, endDate)
       ])
 
       // Calculate growth rates
@@ -49,15 +131,15 @@ class CenterAdminAnalyticsController {
       previousStartDate.setTime(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
       
       const [previousCustomerMetrics, previousRevenueMetrics] = await Promise.all([
-        this.getCustomerMetrics(previousStartDate, startDate),
-        this.getRevenueMetrics(previousStartDate, startDate)
+        getCustomerMetrics(previousStartDate, startDate),
+        getRevenueMetrics(previousStartDate, startDate)
       ])
 
-      const customerGrowth = this.calculateGrowthRate(
+      const customerGrowth = calculateGrowthRate(
         customerMetrics.totalCustomers, 
         previousCustomerMetrics.totalCustomers
       )
-      const revenueGrowth = this.calculateGrowthRate(
+      const revenueGrowth = calculateGrowthRate(
         revenueMetrics.totalRevenue, 
         previousRevenueMetrics.totalRevenue
       )
@@ -106,7 +188,7 @@ class CenterAdminAnalyticsController {
       )
 
       // Calculate additional insights
-      const insights = this.generateRetentionInsights(analytics.cohortData)
+      const insights = generateRetentionInsights(analytics.cohortData)
       analytics.insights = insights
       await analytics.save()
 
@@ -169,7 +251,7 @@ class CenterAdminAnalyticsController {
       )
 
       // Calculate additional insights
-      const insights = this.generateBranchInsights(analytics.branchPerformance)
+      const insights = generateBranchInsights(analytics.branchPerformance)
       analytics.insights = insights
       await analytics.save()
 
@@ -231,14 +313,14 @@ class CenterAdminAnalyticsController {
       } = req.body
 
       // Get historical revenue data
-      const historicalData = await this.getHistoricalRevenueData(
+      const historicalData = await getHistoricalRevenueData(
         new Date(startDate),
         new Date(endDate),
         filters
       )
 
       // Generate forecasts
-      const forecasts = this.generateRevenueForecasts(
+      const forecasts = generateRevenueForecasts(
         historicalData,
         forecastHorizon,
         methodology
@@ -316,7 +398,7 @@ class CenterAdminAnalyticsController {
       const { targetLocation, marketData } = req.body
 
       // Perform expansion analysis
-      const expansionAnalysis = await this.performExpansionAnalysis(targetLocation, marketData)
+      const expansionAnalysis = await performExpansionAnalysis(targetLocation, marketData)
 
       // Create analytics record
       const analytics = new Analytics({
@@ -475,7 +557,7 @@ class CenterAdminAnalyticsController {
         role: 'customer',
         createdAt: { $gte: startDate, $lte: endDate }
       }),
-      Order.distinct('customerId', {
+      Order.distinct('customer', {
         createdAt: { $gte: startDate, $lte: endDate }
       }).then(ids => ids.length)
     ])
@@ -515,7 +597,7 @@ class CenterAdminAnalyticsController {
       }),
       Order.countDocuments({
         createdAt: { $gte: startDate, $lte: endDate },
-        status: 'completed'
+        status: 'delivered'
       }),
       Order.countDocuments({
         createdAt: { $gte: startDate, $lte: endDate },

@@ -4,7 +4,8 @@ const {
   getAvailableTimeSlots,
   checkServiceAvailability,
   getServiceTypes,
-  getActiveBranches
+  getActiveBranches,
+  getBranchServices
 } = require('../controllers/servicesController');
 
 const router = express.Router();
@@ -14,5 +15,6 @@ router.get('/time-slots', getAvailableTimeSlots);
 router.get('/availability/:pincode', checkServiceAvailability);
 router.get('/types', getServiceTypes);
 router.get('/branches', getActiveBranches);
+router.get('/branch/:branchId', getBranchServices);
 
 module.exports = router;

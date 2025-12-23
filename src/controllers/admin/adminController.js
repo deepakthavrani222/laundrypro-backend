@@ -193,9 +193,9 @@ const assignOrderToLogistics = asyncHandler(async (req, res) => {
     return sendError(res, 'LOGISTICS_NOT_FOUND', 'Logistics partner not found or inactive', 404);
   }
 
-  // Check if logistics partner covers the area
+  // Check if logistics partner covers the area (skip if method doesn't exist)
   const pincode = type === 'pickup' ? order.pickupAddress.pincode : order.deliveryAddress.pincode;
-  if (!logisticsPartner.coversPincode(pincode)) {
+  if (logisticsPartner.coversPincode && !logisticsPartner.coversPincode(pincode)) {
     return sendError(res, 'AREA_NOT_COVERED', 'Logistics partner does not cover this area', 400);
   }
 
@@ -203,8 +203,10 @@ const assignOrderToLogistics = asyncHandler(async (req, res) => {
   let notes;
 
   if (type === 'pickup') {
-    if (order.status !== ORDER_STATUS.ASSIGNED_TO_BRANCH) {
-      return sendError(res, 'INVALID_STATUS', 'Order must be assigned to branch first', 400);
+    // Allow pickup assignment for 'placed' orders (customer already selected branch)
+    // or 'assigned_to_branch' orders
+    if (order.status !== ORDER_STATUS.PLACED && order.status !== ORDER_STATUS.ASSIGNED_TO_BRANCH) {
+      return sendError(res, 'INVALID_STATUS', 'Order must be placed or assigned to branch for pickup assignment', 400);
     }
     newStatus = ORDER_STATUS.ASSIGNED_TO_LOGISTICS_PICKUP;
     notes = `Assigned to ${logisticsPartner.companyName} for pickup`;
@@ -735,10 +737,60 @@ const getSupportAgents = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/logistics-partners
 // @access  Private (Admin)
 const getLogisticsPartners = asyncHandler(async (req, res) => {
-  const partners = await LogisticsPartner.find({ isActive: true })
-    .select('companyName contactPerson coverageAreas sla performance');
+  const { status, search } = req.query;
+  
+  // Build query
+  const query = {};
+  if (status === 'active') query.isActive = true;
+  else if (status === 'inactive') query.isActive = false;
+  
+  if (search) {
+    query.$or = [
+      { companyName: { $regex: search, $options: 'i' } },
+      { 'contactPerson.name': { $regex: search, $options: 'i' } }
+    ];
+  }
 
-  sendSuccess(res, { partners }, 'Logistics partners retrieved successfully');
+  const partners = await LogisticsPartner.find(query)
+    .select('companyName contactPerson coverageAreas sla performance isActive rateCard createdAt')
+    .sort({ createdAt: -1 });
+
+  // Get active orders count for each partner
+  const partnersWithStats = await Promise.all(partners.map(async (partner) => {
+    const activeOrders = await Order.countDocuments({
+      logisticsPartner: partner._id,
+      status: { $in: ['assigned_to_logistics_pickup', 'out_for_pickup', 'assigned_to_logistics_delivery', 'out_for_delivery'] }
+    });
+    
+    const totalDeliveries = await Order.countDocuments({
+      logisticsPartner: partner._id,
+      status: 'delivered'
+    });
+
+    return {
+      _id: partner._id,
+      companyName: partner.companyName,
+      contactPerson: partner.contactPerson,
+      coverageAreas: partner.coverageAreas,
+      isActive: partner.isActive,
+      sla: {
+        pickupTime: partner.sla?.pickupTime || 2,
+        deliveryTime: partner.sla?.deliveryTime || 4
+      },
+      performance: {
+        rating: partner.performance?.rating || 0,
+        totalDeliveries: totalDeliveries,
+        onTimeRate: partner.performance?.completedOrders > 0 
+          ? Math.round((partner.performance.completedOrders / partner.performance.totalOrders) * 100) 
+          : 0,
+        activeOrders: activeOrders
+      },
+      rateCard: partner.rateCard,
+      createdAt: partner.createdAt
+    };
+  }));
+
+  sendSuccess(res, { partners: partnersWithStats }, 'Logistics partners retrieved successfully');
 });
 
 // @desc    Get all payments/transactions
@@ -762,16 +814,16 @@ const getPayments = asyncHandler(async (req, res) => {
   
   if (status) {
     if (status === 'completed') {
-      query['payment.status'] = 'paid';
+      query.paymentStatus = 'paid';
     } else if (status === 'pending') {
-      query['payment.status'] = 'pending';
+      query.paymentStatus = 'pending';
     } else if (status === 'failed') {
-      query['payment.status'] = 'failed';
+      query.paymentStatus = 'failed';
     }
   }
   
   if (paymentMethod) {
-    query['payment.method'] = paymentMethod;
+    query.paymentMethod = paymentMethod;
   }
   
   if (startDate || endDate) {
@@ -783,7 +835,7 @@ const getPayments = asyncHandler(async (req, res) => {
   if (search) {
     query.$or = [
       { orderNumber: { $regex: search, $options: 'i' } },
-      { 'payment.transactionId': { $regex: search, $options: 'i' } }
+      { 'paymentDetails.transactionId': { $regex: search, $options: 'i' } }
     ];
   }
 
@@ -793,22 +845,22 @@ const getPayments = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limitNum)
-    .select('orderNumber customer pricing payment status createdAt');
+    .select('orderNumber customer pricing paymentMethod paymentStatus paymentDetails status createdAt');
 
   // Transform to payment format
   const payments = orders.map(order => ({
     _id: order._id,
-    transactionId: order.payment?.transactionId || `TXN${order._id.toString().slice(-8).toUpperCase()}`,
+    transactionId: order.paymentDetails?.transactionId || `TXN${order._id.toString().slice(-8).toUpperCase()}`,
     orderId: order._id,
     orderNumber: order.orderNumber,
     customer: order.customer,
     amount: order.pricing?.total || 0,
-    method: order.payment?.method === 'cod' ? 'Cash' : 
-            order.payment?.method === 'online' ? 'UPI' : 
-            order.payment?.method || 'Cash',
-    status: order.payment?.status === 'paid' ? 'completed' : 
-            order.payment?.status === 'pending' ? 'pending' :
-            order.payment?.status === 'failed' ? 'failed' :
+    method: order.paymentMethod === 'cod' ? 'Cash' : 
+            order.paymentMethod === 'online' ? 'UPI' : 
+            order.paymentMethod || 'Cash',
+    status: order.paymentStatus === 'paid' ? 'completed' : 
+            order.paymentStatus === 'pending' ? 'pending' :
+            order.paymentStatus === 'failed' ? 'failed' :
             order.status === 'delivered' ? 'completed' : 'pending',
     createdAt: order.createdAt
   }));
@@ -822,7 +874,7 @@ const getPayments = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 const getPaymentStats = asyncHandler(async (req, res) => {
   const today = new Date();
-  const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
   // Get stats from orders
@@ -833,19 +885,19 @@ const getPaymentStats = asyncHandler(async (req, res) => {
     monthlyRevenue
   ] = await Promise.all([
     Order.aggregate([
-      { $match: { 'payment.status': 'paid' } },
+      { $match: { paymentStatus: 'paid' } },
       { $group: { _id: null, total: { $sum: '$pricing.total' }, count: { $sum: 1 } } }
     ]),
     Order.aggregate([
-      { $match: { 'payment.status': { $ne: 'paid' }, status: { $ne: 'cancelled' } } },
+      { $match: { paymentStatus: { $ne: 'paid' }, status: { $ne: 'cancelled' } } },
       { $group: { _id: null, total: { $sum: '$pricing.total' }, count: { $sum: 1 } } }
     ]),
     Order.aggregate([
-      { $match: { 'payment.status': 'paid', createdAt: { $gte: startOfDay } } },
+      { $match: { paymentStatus: 'paid', createdAt: { $gte: startOfDay } } },
       { $group: { _id: null, total: { $sum: '$pricing.total' } } }
     ]),
     Order.aggregate([
-      { $match: { 'payment.status': 'paid', createdAt: { $gte: startOfMonth } } },
+      { $match: { paymentStatus: 'paid', createdAt: { $gte: startOfMonth } } },
       { $group: { _id: null, total: { $sum: '$pricing.total' } } }
     ])
   ]);
@@ -1171,12 +1223,69 @@ const markAllNotificationsAsRead = asyncHandler(async (req, res) => {
   sendSuccess(res, null, 'All notifications marked as read');
 });
 
+// @desc    Update payment status
+// @route   PUT /api/admin/orders/:orderId/payment-status
+// @access  Private (Admin/Center Admin)
+const updatePaymentStatus = asyncHandler(async (req, res) => {
+  const { orderId } = req.params;
+  const { paymentStatus, transactionId } = req.body;
+
+  const validStatuses = ['pending', 'paid', 'failed', 'refunded'];
+  if (!validStatuses.includes(paymentStatus)) {
+    return sendError(res, 'INVALID_STATUS', 'Invalid payment status', 400);
+  }
+
+  const order = await Order.findById(orderId);
+  if (!order) {
+    return sendError(res, 'ORDER_NOT_FOUND', 'Order not found', 404);
+  }
+
+  order.paymentStatus = paymentStatus;
+  
+  if (paymentStatus === 'paid') {
+    order.paymentDetails = {
+      ...order.paymentDetails,
+      paidAt: new Date(),
+      transactionId: transactionId || order.paymentDetails?.transactionId || `MANUAL-${order.orderNumber}`
+    };
+  }
+
+  await order.save();
+
+  const updatedOrder = await Order.findById(orderId)
+    .populate('customer', 'name phone')
+    .populate('branch', 'name code');
+
+  sendSuccess(res, { order: updatedOrder }, 'Payment status updated successfully');
+});
+
+// @desc    Fix all delivered orders with pending payment
+// @route   POST /api/admin/fix-delivered-payments
+// @access  Private (Admin/Center Admin)
+const fixDeliveredPayments = asyncHandler(async (req, res) => {
+  const result = await Order.updateMany(
+    { status: ORDER_STATUS.DELIVERED, paymentStatus: 'pending' },
+    { 
+      $set: { 
+        paymentStatus: 'paid',
+        'paymentDetails.paidAt': new Date()
+      }
+    }
+  );
+
+  sendSuccess(res, { 
+    modifiedCount: result.modifiedCount 
+  }, `Fixed ${result.modifiedCount} orders with pending payment`);
+});
+
 module.exports = {
   getDashboard,
   getAllOrders,
   assignOrderToBranch,
   assignOrderToLogistics,
   updateOrderStatus,
+  updatePaymentStatus,
+  fixDeliveredPayments,
   getCustomers,
   toggleCustomerStatus,
   tagVIPCustomer,

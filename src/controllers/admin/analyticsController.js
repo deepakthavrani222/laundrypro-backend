@@ -23,7 +23,7 @@ const getWeeklyOrders = async (req, res) => {
             $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
           },
           orders: { $sum: 1 },
-          revenue: { $sum: '$totalAmount' }
+          revenue: { $sum: { $ifNull: ['$pricing.total', 0] } }
         }
       },
       { $sort: { _id: 1 } }
@@ -115,11 +115,13 @@ const getRevenueData = async (req, res) => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // Get revenue from delivered orders (paid orders)
     const revenue = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: sevenDaysAgo, $lte: today },
-          status: { $nin: ['cancelled'] }
+          status: 'delivered',
+          paymentStatus: 'paid'
         }
       },
       {
@@ -127,7 +129,7 @@ const getRevenueData = async (req, res) => {
           _id: {
             $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
           },
-          revenue: { $sum: '$totalAmount' },
+          revenue: { $sum: { $ifNull: ['$pricing.total', 0] } },
           orders: { $sum: 1 }
         }
       },
@@ -201,7 +203,7 @@ const getHourlyOrders = async (req, res) => {
         $group: {
           _id: { $hour: '$createdAt' },
           orders: { $sum: 1 },
-          revenue: { $sum: '$totalAmount' }
+          revenue: { $sum: { $ifNull: ['$pricing.total', 0] } }
         }
       },
       { $sort: { _id: 1 } }

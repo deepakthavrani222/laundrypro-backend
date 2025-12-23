@@ -83,6 +83,16 @@ class CenterAdminBranchController {
   // Get single branch details
   async getBranch(req, res) {
     try {
+      // Check for validation errors
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        })
+      }
+
       const { branchId } = req.params
 
       const branch = await Branch.findById(branchId)
@@ -98,40 +108,73 @@ class CenterAdminBranchController {
         })
       }
 
-      // Get recent orders for this branch
-      const recentOrders = await Order.find({ branchId })
-        .populate('customerId', 'name email')
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean()
+      // Get recent orders for this branch - try both branchId and branch field
+      let recentOrders = []
+      try {
+        recentOrders = await Order.find({ 
+          $or: [{ branchId: branch._id }, { branch: branch._id }]
+        })
+          .populate('customerId', 'name email')
+          .populate('customer', 'name email')
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .lean()
+      } catch (orderError) {
+        console.error('Error fetching recent orders:', orderError)
+      }
 
       // Calculate additional metrics
       const today = new Date()
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
       
-      const monthlyStats = await Order.aggregate([
-        {
-          $match: {
-            branchId: branch._id,
-            createdAt: { $gte: startOfMonth }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            totalOrders: { $sum: 1 },
-            totalRevenue: { $sum: '$totalAmount' },
-            completedOrders: {
-              $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] }
-            }
-          }
-        }
-      ])
-
-      const monthlyData = monthlyStats[0] || {
+      let monthlyData = {
         totalOrders: 0,
         totalRevenue: 0,
         completedOrders: 0
+      }
+
+      try {
+        const monthlyStats = await Order.aggregate([
+          {
+            $match: {
+              $or: [{ branchId: branch._id }, { branch: branch._id }],
+              createdAt: { $gte: startOfMonth }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalOrders: { $sum: 1 },
+              totalRevenue: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } },
+              completedOrders: {
+                $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] }
+              }
+            }
+          }
+        ])
+        monthlyData = monthlyStats[0] || monthlyData
+      } catch (statsError) {
+        console.error('Error calculating monthly stats:', statsError)
+      }
+
+      // Safely call methods
+      let isOperational = false
+      let staffCount = 0
+      
+      try {
+        isOperational = typeof branch.isOperationalToday === 'function' 
+          ? branch.isOperationalToday() 
+          : (branch.isActive && branch.status === 'active')
+      } catch (e) {
+        isOperational = branch.isActive && branch.status === 'active'
+      }
+      
+      try {
+        staffCount = typeof branch.getActiveStaffCount === 'function'
+          ? branch.getActiveStaffCount()
+          : (branch.staff?.filter(s => s.isActive).length || 0)
+      } catch (e) {
+        staffCount = branch.staff?.filter(s => s.isActive).length || 0
       }
 
       return res.json({
@@ -140,8 +183,8 @@ class CenterAdminBranchController {
           branch,
           recentOrders,
           monthlyStats: monthlyData,
-          isOperational: branch.isOperationalToday(),
-          staffCount: branch.getActiveStaffCount()
+          isOperational,
+          staffCount
         }
       })
     } catch (error) {

@@ -19,6 +19,9 @@ class OrderService {
       // Update order status
       await order.updateStatus(newStatus, updatedBy, notes);
 
+      // Handle payment status updates based on order status
+      await this.handlePaymentStatusUpdate(order, newStatus);
+
       // Send notifications based on status
       await this.sendStatusNotifications(order, newStatus);
 
@@ -26,6 +29,40 @@ class OrderService {
     } catch (error) {
       console.error('Error updating order status:', error);
       throw error;
+    }
+  }
+
+  // Handle payment status updates based on order status
+  static async handlePaymentStatusUpdate(order, newStatus) {
+    try {
+      // When order is delivered, mark payment as paid (especially for COD)
+      if (newStatus === ORDER_STATUS.DELIVERED) {
+        if (order.paymentStatus !== 'paid') {
+          order.paymentStatus = 'paid';
+          order.paymentDetails = {
+            ...order.paymentDetails,
+            paidAt: new Date(),
+            transactionId: order.paymentDetails?.transactionId || `COD-${order.orderNumber}`
+          };
+          await order.save();
+        }
+      }
+      
+      // When order is cancelled, handle refund if already paid
+      if (newStatus === ORDER_STATUS.CANCELLED) {
+        if (order.paymentStatus === 'paid' && order.paymentMethod !== 'cod') {
+          // Mark for refund processing (actual refund handled separately)
+          order.paymentStatus = 'refunded';
+          await order.save();
+        } else if (order.paymentStatus === 'pending') {
+          // No payment was made, just mark as cancelled
+          order.paymentStatus = 'failed';
+          await order.save();
+        }
+      }
+    } catch (error) {
+      console.error('Error handling payment status update:', error);
+      // Don't throw - payment status update shouldn't break main flow
     }
   }
 

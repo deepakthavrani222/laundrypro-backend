@@ -80,9 +80,8 @@ const branchPerformanceSchema = new mongoose.Schema({
 
 const expansionAnalysisSchema = new mongoose.Schema({
   analysisId: { 
-    type: String, 
-    required: true, 
-    unique: true,
+    type: String,
+    sparse: true,
     index: true
   },
   
@@ -193,8 +192,8 @@ const analyticsSchema = new mongoose.Schema({
   // Analytics Identification
   analyticsId: { 
     type: String, 
-    required: true, 
     unique: true,
+    sparse: true,
     index: true
   },
   

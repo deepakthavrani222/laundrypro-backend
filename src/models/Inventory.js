@@ -28,7 +28,7 @@ const inventorySchema = new mongoose.Schema({
   },
   unit: {
     type: String,
-    enum: ['liters', 'kg', 'pieces'],
+    enum: ['liters', 'kg', 'pieces', 'units', 'ml'],
     required: true
   },
   costPerUnit: {
