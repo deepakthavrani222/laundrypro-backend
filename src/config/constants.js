@@ -239,6 +239,16 @@ const STAFF_ROLES = {
   IRONER: 'ironer'
 };
 
+// Worker Specializations (for staff members)
+const WORKER_TYPES = {
+  WASHER: 'washer',
+  DRY_CLEANER: 'dry_cleaner',
+  IRONER: 'ironer',
+  PACKER: 'packer',
+  QUALITY_CHECKER: 'quality_checker',
+  GENERAL: 'general'
+};
+
 // Inventory Items
 const INVENTORY_ITEMS = {
   DETERGENT: 'detergent',
@@ -313,6 +323,7 @@ module.exports = {
   REFUND_TYPES,
   PAYMENT_METHODS,
   STAFF_ROLES,
+  WORKER_TYPES,
   INVENTORY_ITEMS,
   NOTIFICATION_TYPES,
   CONSUMPTION_RATES,

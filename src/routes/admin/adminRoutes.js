@@ -6,6 +6,8 @@ const {
   assignOrderToBranch,
   assignOrderToLogistics,
   updateOrderStatus,
+  updatePaymentStatus,
+  fixDeliveredPayments,
   getCustomers,
   toggleCustomerStatus,
   tagVIPCustomer,
@@ -71,6 +73,8 @@ router.get('/orders', getAllOrders);
 router.put('/orders/:orderId/assign-branch', assignOrderToBranch);
 router.put('/orders/:orderId/assign-logistics', assignOrderToLogistics);
 router.put('/orders/:orderId/status', updateOrderStatus);
+router.put('/orders/:orderId/payment-status', updatePaymentStatus);
+router.post('/fix-delivered-payments', fixDeliveredPayments);
 
 // Customer management routes
 router.get('/customers', getCustomers);

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const { USER_ROLES } = require('../config/constants');
+const { USER_ROLES, WORKER_TYPES } = require('../config/constants');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -69,6 +69,12 @@ const userSchema = new mongoose.Schema({
   assignedBranch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'
+  },
+  // Staff/Worker specific fields
+  workerType: {
+    type: String,
+    enum: Object.values(WORKER_TYPES),
+    default: WORKER_TYPES.GENERAL
   },
   // Rewards
   rewardPoints: {

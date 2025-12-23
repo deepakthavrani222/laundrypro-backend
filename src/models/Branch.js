@@ -252,16 +252,22 @@ branchSchema.index({ isActive: 1 });
 
 // Check if branch is operational today
 branchSchema.methods.isOperationalToday = function() {
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'lowercase' });
-  const isWorkingDay = this.operatingHours.workingDays.includes(today);
-  
-  // Check if today is a holiday
-  const todayDate = new Date().toDateString();
-  const isHoliday = this.holidays.some(holiday => 
-    holiday.date.toDateString() === todayDate
-  );
-  
-  return isWorkingDay && !isHoliday && this.isActive && this.status === 'active';
+  try {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = days[new Date().getDay()];
+    const isWorkingDay = this.operatingHours?.workingDays?.includes(today) ?? false;
+    
+    // Check if today is a holiday
+    const todayDate = new Date().toDateString();
+    const isHoliday = this.holidays?.some(holiday => 
+      holiday.date && holiday.date.toDateString() === todayDate
+    ) ?? false;
+    
+    return isWorkingDay && !isHoliday && this.isActive && this.status === 'active';
+  } catch (error) {
+    console.error('Error in isOperationalToday:', error);
+    return this.isActive && this.status === 'active';
+  }
 };
 
 // Check capacity availability

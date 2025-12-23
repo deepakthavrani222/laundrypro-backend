@@ -1,4 +1,5 @@
 const Branch = require('../models/Branch');
+const Service = require('../models/Service');
 const { 
   sendSuccess, 
   sendError, 
@@ -161,10 +162,87 @@ const getActiveBranches = asyncHandler(async (req, res) => {
   sendSuccess(res, { branches: formattedBranches }, 'Branches retrieved successfully');
 });
 
+// @desc    Get services available for a specific branch (for customers)
+// @route   GET /api/services/branch/:branchId
+// @access  Public
+const getBranchServices = asyncHandler(async (req, res) => {
+  const { branchId } = req.params;
+
+  // Validate branch exists and is active
+  const branch = await Branch.findOne({ _id: branchId, isActive: true });
+  if (!branch) {
+    return sendError(res, 'BRANCH_NOT_FOUND', 'Branch not found or inactive', 404);
+  }
+
+  // Get all admin-created services that are enabled for this branch
+  const adminServices = await Service.find({
+    isActive: true,
+    createdByBranch: { $exists: false }
+  }).lean();
+
+  // Get branch-created services
+  const branchServices = await Service.find({
+    createdByBranch: branchId,
+    isActive: true
+  }).lean();
+
+  // Filter admin services - only show those enabled for this branch
+  const enabledAdminServices = adminServices.filter(service => {
+    const branchConfig = service.branches?.find(
+      b => b.branch && b.branch.toString() === branchId
+    );
+    // If no config exists, service is enabled by default
+    // If config exists, check isActive
+    return branchConfig ? branchConfig.isActive !== false : true;
+  }).map(service => {
+    const branchConfig = service.branches?.find(
+      b => b.branch && b.branch.toString() === branchId
+    );
+    return {
+      _id: service._id,
+      name: service.name,
+      code: service.code,
+      displayName: service.displayName,
+      description: service.description,
+      icon: service.icon,
+      category: service.category,
+      turnaroundTime: branchConfig?.customTurnaround || service.turnaroundTime,
+      isExpressAvailable: service.isExpressAvailable,
+      priceMultiplier: branchConfig?.priceMultiplier || service.basePriceMultiplier || 1.0
+    };
+  });
+
+  // Format branch services
+  const formattedBranchServices = branchServices.map(service => ({
+    _id: service._id,
+    name: service.name,
+    code: service.code,
+    displayName: service.displayName,
+    description: service.description,
+    icon: service.icon,
+    category: service.category,
+    turnaroundTime: service.turnaroundTime,
+    isExpressAvailable: service.isExpressAvailable,
+    priceMultiplier: service.basePriceMultiplier || 1.0
+  }));
+
+  const allServices = [...enabledAdminServices, ...formattedBranchServices];
+
+  sendSuccess(res, { 
+    services: allServices,
+    branch: {
+      _id: branch._id,
+      name: branch.name,
+      code: branch.code
+    }
+  }, 'Branch services retrieved successfully');
+});
+
 module.exports = {
   calculatePricing,
   getAvailableTimeSlots,
   checkServiceAvailability,
   getServiceTypes,
-  getActiveBranches
+  getActiveBranches,
+  getBranchServices
 };

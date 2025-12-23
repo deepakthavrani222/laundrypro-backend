@@ -6,6 +6,8 @@ const authenticateCenterAdmin = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '')
     
+    console.log('🔐 Center Admin Auth - Token received:', token ? `${token.substring(0, 30)}...` : 'NO TOKEN')
+    
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -17,7 +19,14 @@ const authenticateCenterAdmin = async (req, res, next) => {
     let decoded
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET)
+      console.log('🔐 Center Admin Auth - Decoded token:', { 
+        adminId: decoded.adminId, 
+        email: decoded.email, 
+        role: decoded.role,
+        sessionId: decoded.sessionId 
+      })
     } catch (error) {
+      console.log('🔐 Center Admin Auth - JWT verify error:', error.message)
       return res.status(401).json({
         success: false,
         message: 'Invalid token'
@@ -26,6 +35,7 @@ const authenticateCenterAdmin = async (req, res, next) => {
 
     // Check if token is for center admin
     if (decoded.role !== 'center_admin') {
+      console.log('🔐 Center Admin Auth - Role mismatch:', decoded.role, '!== center_admin')
       return res.status(403).json({
         success: false,
         message: 'Access denied. Center admin role required.'
@@ -34,6 +44,7 @@ const authenticateCenterAdmin = async (req, res, next) => {
 
     // Find admin
     const admin = await CenterAdmin.findById(decoded.adminId)
+    console.log('🔐 Center Admin Auth - Admin found:', admin ? { id: admin._id, email: admin.email, role: admin.role, isActive: admin.isActive } : 'NOT FOUND')
     if (!admin) {
       return res.status(401).json({
         success: false,

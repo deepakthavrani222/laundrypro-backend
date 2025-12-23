@@ -10,6 +10,9 @@ router.use(requirePermission('users'));
 // Get all users
 router.get('/', centerAdminUsersController.getAllUsers);
 
+// Create new user
+router.post('/', centerAdminUsersController.createUser);
+
 // Get user by ID
 router.get('/:userId', centerAdminUsersController.getUserById);
 
