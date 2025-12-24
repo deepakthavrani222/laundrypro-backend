@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const CenterAdmin = require('../models/CenterAdmin');
+const SuperAdmin = require('../models/SuperAdmin');
 const { verifyAccessToken, verifyToken } = require('../utils/jwt');
 
 // Protect routes - require authentication
@@ -79,12 +79,12 @@ const protectAny = async (req, res, next) => {
       // Use verifyToken (not verifyAccessToken) to accept both token types
       const decoded = verifyToken(token);
       
-      // Check if it's a center admin token (has adminId)
+      // Check if it's a super admin token (has adminId)
       if (decoded.adminId) {
-        const admin = await CenterAdmin.findById(decoded.adminId).select('-password');
+        const admin = await SuperAdmin.findById(decoded.adminId).select('-password');
         if (admin && admin.isActive) {
           req.user = admin;
-          req.isCenterAdmin = true;
+          req.isSuperAdmin = true;
           return next();
         }
       }
@@ -94,7 +94,7 @@ const protectAny = async (req, res, next) => {
         const user = await User.findById(decoded.userId).select('-password');
         if (user && user.isActive) {
           req.user = user;
-          req.isCenterAdmin = false;
+          req.isSuperAdmin = false;
           return next();
         }
       }

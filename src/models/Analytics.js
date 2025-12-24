@@ -173,7 +173,7 @@ const expansionAnalysisSchema = new mongoose.Schema({
   },
   reviewedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'CenterAdmin'
+    ref: 'SuperAdmin'
   },
   reviewedAt: Date,
   reviewNotes: String,
@@ -330,12 +330,12 @@ const analyticsSchema = new mongoose.Schema({
   // Audit Trail
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'CenterAdmin',
+    ref: 'SuperAdmin',
     required: true
   },
   lastAccessedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'CenterAdmin'
+    ref: 'SuperAdmin'
   },
   lastAccessedAt: Date,
   accessCount: { type: Number, default: 0 },

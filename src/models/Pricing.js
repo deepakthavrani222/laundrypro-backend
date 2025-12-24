@@ -136,7 +136,8 @@ const pricingSchema = new mongoose.Schema({
     enum: ['draft', 'pending_approval', 'approved', 'rejected'],
     default: 'draft'
   },
-  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'CenterAdmin' },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'approvedByModel' },
+  approvedByModel: { type: String, enum: ['CenterAdmin', 'SuperAdmin'], default: 'SuperAdmin' },
   approvedAt: Date,
   rejectionReason: String,
   
@@ -145,8 +146,10 @@ const pricingSchema = new mongoose.Schema({
   effectiveTo: Date,
   
   // Creation and modification
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'CenterAdmin', required: true },
-  lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'CenterAdmin' },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'createdByModel' },
+  createdByModel: { type: String, enum: ['CenterAdmin', 'SuperAdmin'], default: 'SuperAdmin' },
+  lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'lastModifiedByModel' },
+  lastModifiedByModel: { type: String, enum: ['CenterAdmin', 'SuperAdmin'], default: 'SuperAdmin' },
   
   // Usage statistics
   stats: {

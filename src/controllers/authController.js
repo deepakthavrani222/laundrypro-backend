@@ -222,21 +222,30 @@ const login = async (req, res) => {
     // Generate access token
     const accessToken = generateAccessToken(user._id, user.email, user.role);
 
+    // Build user response with permissions for admin/staff roles
+    const userResponse = {
+      _id: user._id,
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      isActive: user.isActive,
+      lastLogin: user.lastLogin
+    };
+
+    // Include permissions for admin, center_admin, and staff roles
+    if (['admin', 'center_admin', 'staff'].includes(user.role)) {
+      userResponse.permissions = user.permissions || {};
+      userResponse.assignedBranch = user.assignedBranch;
+    }
+
     res.status(200).json({
       success: true,
       message: 'Login successful!',
       data: {
-        user: {
-          _id: user._id,
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          isActive: user.isActive,
-          lastLogin: user.lastLogin
-        },
+        user: userResponse,
         token: accessToken
       }
     });
@@ -255,25 +264,34 @@ const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     
+    // Build user response
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      phoneVerified: user.phoneVerified,
+      addresses: user.addresses,
+      preferences: user.preferences,
+      rewardPoints: user.rewardPoints,
+      totalOrders: user.totalOrders,
+      isVIP: user.isVIP,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
+    };
+
+    // Include permissions for admin, center_admin, and staff roles
+    if (['admin', 'center_admin', 'staff'].includes(user.role)) {
+      userResponse.permissions = user.permissions || {};
+      userResponse.assignedBranch = user.assignedBranch;
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          phoneVerified: user.phoneVerified,
-          addresses: user.addresses,
-          preferences: user.preferences,
-          rewardPoints: user.rewardPoints,
-          totalOrders: user.totalOrders,
-          isVIP: user.isVIP,
-          lastLogin: user.lastLogin,
-          createdAt: user.createdAt
-        }
+        user: userResponse
       }
     });
 

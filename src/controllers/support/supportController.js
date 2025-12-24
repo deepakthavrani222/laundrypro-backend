@@ -353,10 +353,10 @@ const escalateTicket = asyncHandler(async (req, res) => {
 
   let escalationTarget;
   
-  // If escalatedTo is 'admin' or 'center_admin', find any available admin
-  if (escalatedTo === 'admin' || escalatedTo === 'center_admin' || !escalatedTo) {
+  // If escalatedTo is 'admin' or 'superadmin', find any available admin
+  if (escalatedTo === 'admin' || escalatedTo === 'superadmin' || !escalatedTo) {
     escalationTarget = await User.findOne({
-      role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] },
+      role: { $in: [USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN] },
       isActive: { $ne: false }
     });
   } else {
@@ -365,12 +365,12 @@ const escalateTicket = asyncHandler(async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(escalatedTo)) {
       escalationTarget = await User.findOne({
         _id: escalatedTo,
-        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] }
+        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN] }
       });
     } else {
       // Try to find by role name
       escalationTarget = await User.findOne({
-        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN] },
+        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN] },
         isActive: { $ne: false }
       });
     }
@@ -457,7 +457,7 @@ const getCustomers = asyncHandler(async (req, res) => {
           $group: {
             _id: null,
             totalOrders: { $sum: 1 },
-            totalSpent: { $sum: '$totalAmount' },
+            totalSpent: { $sum: '$pricing.total' },
             lastOrderDate: { $max: '$createdAt' }
           }
         }
@@ -504,7 +504,7 @@ const getCustomerById = asyncHandler(async (req, res) => {
       $group: {
         _id: null,
         totalOrders: { $sum: 1 },
-        totalSpent: { $sum: '$totalAmount' },
+        totalSpent: { $sum: '$pricing.total' },
         lastOrderDate: { $max: '$createdAt' }
       }
     }
@@ -514,7 +514,7 @@ const getCustomerById = asyncHandler(async (req, res) => {
 
   // Get recent orders
   const recentOrders = await Order.find({ customer: customerId })
-    .select('orderNumber status totalAmount createdAt')
+    .select('orderNumber status pricing.total createdAt')
     .sort({ createdAt: -1 })
     .limit(5);
 
