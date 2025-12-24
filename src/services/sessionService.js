@@ -117,7 +117,7 @@ class SessionService {
       // Log successful login
       await AuditLog.logAction({
         userId: admin._id,
-        userType: 'center_admin',
+        userType: 'superadmin',
         userEmail: admin.email,
         action: 'login',
         category: 'auth',
@@ -170,7 +170,7 @@ class SessionService {
         // Log IP change
         await AuditLog.logAction({
           userId: admin._id,
-          userType: 'center_admin',
+          userType: 'superadmin',
           userEmail: admin.email,
           action: 'ip_change',
           category: 'auth',
@@ -204,7 +204,7 @@ class SessionService {
         // Log session termination
         await AuditLog.logAction({
           userId: admin._id,
-          userType: 'center_admin',
+          userType: 'superadmin',
           userEmail: admin.email,
           action: 'logout',
           category: 'auth',
@@ -245,8 +245,8 @@ class SessionService {
   // Clean expired sessions (run periodically)
   async cleanExpiredSessions() {
     try {
-      const CenterAdmin = require('../models/CenterAdmin')
-      const admins = await CenterAdmin.find({ 'sessions.0': { $exists: true } })
+      const SuperAdmin = require('../models/SuperAdmin')
+      const admins = await SuperAdmin.find({ 'sessions.0': { $exists: true } })
 
       for (const admin of admins) {
         await admin.cleanExpiredSessions()

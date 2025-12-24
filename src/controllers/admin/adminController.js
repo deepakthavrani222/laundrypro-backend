@@ -50,7 +50,7 @@ const getDashboard = asyncHandler(async (req, res) => {
     .populate('customer', 'name phone')
     .populate('branch', 'name code')
     .sort({ createdAt: -1 })
-    .limit(10)
+    .limit(5)
     .select('orderNumber status pricing.total createdAt isExpress');
 
   // Get order status distribution
@@ -87,7 +87,7 @@ const getDashboard = asyncHandler(async (req, res) => {
 const getAllOrders = asyncHandler(async (req, res) => {
   const { 
     page = 1, 
-    limit = 20, 
+    limit = 8, 
     status, 
     branch, 
     isExpress, 
@@ -256,7 +256,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/customers
 // @access  Private (Admin/Center Admin)
 const getCustomers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search, isVIP, isActive } = req.query;
+  const { page = 1, limit = 8, search, isVIP, isActive } = req.query;
   const { skip, limit: limitNum, page: pageNum } = getPagination(page, limit);
 
   const query = { role: USER_ROLES.CUSTOMER };
@@ -678,15 +678,15 @@ const escalateRefund = asyncHandler(async (req, res) => {
     return sendError(res, 'REFUND_NOT_FOUND', 'Refund not found', 404);
   }
 
-  // Find a center admin to escalate to
-  const CenterAdmin = require('../../models/CenterAdmin');
-  const centerAdmin = await CenterAdmin.findOne({ isActive: true });
+  // Find a super admin to escalate to
+  const SuperAdmin = require('../../models/SuperAdmin');
+  const superAdmin = await SuperAdmin.findOne({ isActive: true });
 
-  if (!centerAdmin) {
-    return sendError(res, 'NO_CENTER_ADMIN', 'No center admin available for escalation', 400);
+  if (!superAdmin) {
+    return sendError(res, 'NO_SUPER_ADMIN', 'No super admin available for escalation', 400);
   }
 
-  await refund.escalate(centerAdmin._id, reason);
+  await refund.escalate(superAdmin._id, reason);
 
   const updatedRefund = await Refund.findById(refundId)
     .populate('escalatedTo', 'name');

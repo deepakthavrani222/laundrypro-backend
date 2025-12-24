@@ -16,6 +16,36 @@ const orderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'
   },
+  // Service Type - Pickup & Delivery Options
+  serviceType: {
+    type: String,
+    enum: ['full_service', 'self_drop_self_pickup', 'self_drop_home_delivery', 'home_pickup_self_pickup'],
+    default: 'full_service'
+    // full_service = Home Pickup + Home Delivery (logistics for both)
+    // self_drop_self_pickup = Customer drops at branch + picks up from branch
+    // self_drop_home_delivery = Customer drops at branch + Home delivery
+    // home_pickup_self_pickup = Home pickup + Customer picks up from branch
+  },
+  pickupType: {
+    type: String,
+    enum: ['logistics', 'self'],
+    default: 'logistics'
+  },
+  deliveryType: {
+    type: String,
+    enum: ['logistics', 'self'],
+    default: 'logistics'
+  },
+  // Selected branch for self drop-off/pickup
+  selectedBranch: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Branch'
+  },
+  // Self service discount applied
+  selfServiceDiscount: {
+    type: Number,
+    default: 0
+  },
   // Pickup details
   pickupAddress: {
     name: String,

@@ -65,6 +65,9 @@ const verifyPasswordResetToken = (token) => {
 };
 
 // Generate access token for authentication
+// Note: Permissions are NOT included in token to keep token size small.
+// Permissions are fetched from database in middleware for each request.
+// Frontend receives permissions in login response for UI rendering.
 const generateAccessToken = (userId, email, role = 'customer') => {
   return generateToken(
     { 

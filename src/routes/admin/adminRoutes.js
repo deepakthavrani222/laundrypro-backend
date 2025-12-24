@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect } = require('../../middlewares/auth');
+const { checkPermission } = require('../../middlewares/checkPermission');
 const {
   getDashboard,
   getAllOrders,
@@ -53,6 +54,13 @@ const {
   updateBranchDeliveryPricing
 } = require('../../controllers/admin/deliveryPricingController');
 
+const {
+  createCenterAdmin,
+  getCenterAdmins,
+  deactivateCenterAdmin,
+  reactivateCenterAdmin
+} = require('../../controllers/adminStaffController');
+
 const router = express.Router();
 
 // Apply authentication
@@ -61,71 +69,77 @@ router.use(protect);
 // Dashboard routes
 router.get('/dashboard', getDashboard);
 
-// Analytics routes for charts
-router.get('/analytics/weekly-orders', getWeeklyOrders);
-router.get('/analytics/order-status', getOrderStatusDistribution);
-router.get('/analytics/revenue', getRevenueData);
-router.get('/analytics/hourly-orders', getHourlyOrders);
-router.get('/analytics/service-distribution', getServiceDistribution);
+// Analytics routes for charts (requires reports.view permission)
+router.get('/analytics/weekly-orders', checkPermission('reports', 'view'), getWeeklyOrders);
+router.get('/analytics/order-status', checkPermission('reports', 'view'), getOrderStatusDistribution);
+router.get('/analytics/revenue', checkPermission('reports', 'view'), getRevenueData);
+router.get('/analytics/hourly-orders', checkPermission('reports', 'view'), getHourlyOrders);
+router.get('/analytics/service-distribution', checkPermission('reports', 'view'), getServiceDistribution);
 
 // Order management routes
-router.get('/orders', getAllOrders);
-router.put('/orders/:orderId/assign-branch', assignOrderToBranch);
-router.put('/orders/:orderId/assign-logistics', assignOrderToLogistics);
-router.put('/orders/:orderId/status', updateOrderStatus);
-router.put('/orders/:orderId/payment-status', updatePaymentStatus);
-router.post('/fix-delivered-payments', fixDeliveredPayments);
+router.get('/orders', checkPermission('orders', 'view'), getAllOrders);
+router.put('/orders/:orderId/assign-branch', checkPermission('orders', 'assign'), assignOrderToBranch);
+router.put('/orders/:orderId/assign-logistics', checkPermission('orders', 'assign'), assignOrderToLogistics);
+router.put('/orders/:orderId/status', checkPermission('orders', 'update'), updateOrderStatus);
+router.put('/orders/:orderId/payment-status', checkPermission('financial', 'update'), updatePaymentStatus);
+router.post('/fix-delivered-payments', checkPermission('financial', 'update'), fixDeliveredPayments);
 
 // Customer management routes
-router.get('/customers', getCustomers);
-router.put('/customers/:customerId/toggle-status', toggleCustomerStatus);
-router.put('/customers/:customerId/vip', tagVIPCustomer);
+router.get('/customers', checkPermission('customers', 'view'), getCustomers);
+router.put('/customers/:customerId/toggle-status', checkPermission('customers', 'update'), toggleCustomerStatus);
+router.put('/customers/:customerId/vip', checkPermission('customers', 'update'), tagVIPCustomer);
 
 // Complaint management routes
-router.get('/complaints', getComplaints);
-router.get('/complaints/:complaintId', getComplaintById);
-router.put('/complaints/:complaintId/assign', assignComplaint);
-router.put('/complaints/:complaintId/status', updateComplaintStatus);
+router.get('/complaints', checkPermission('orders', 'view'), getComplaints);
+router.get('/complaints/:complaintId', checkPermission('orders', 'view'), getComplaintById);
+router.put('/complaints/:complaintId/assign', checkPermission('orders', 'assign'), assignComplaint);
+router.put('/complaints/:complaintId/status', checkPermission('orders', 'update'), updateComplaintStatus);
 
 // Refund management routes
-router.get('/refunds', getRefundRequests);
-router.get('/refunds/:refundId', getRefundById);
-router.post('/refunds', createRefundRequest);
-router.put('/refunds/:refundId/approve', approveRefund);
-router.put('/refunds/:refundId/reject', rejectRefund);
-router.put('/refunds/:refundId/escalate', escalateRefund);
-router.put('/refunds/:refundId/process', processRefund);
+router.get('/refunds', checkPermission('financial', 'view'), getRefundRequests);
+router.get('/refunds/:refundId', checkPermission('financial', 'view'), getRefundById);
+router.post('/refunds', checkPermission('orders', 'refund'), createRefundRequest);
+router.put('/refunds/:refundId/approve', checkPermission('financial', 'approve'), approveRefund);
+router.put('/refunds/:refundId/reject', checkPermission('financial', 'approve'), rejectRefund);
+router.put('/refunds/:refundId/escalate', checkPermission('orders', 'refund'), escalateRefund);
+router.put('/refunds/:refundId/process', checkPermission('financial', 'approve'), processRefund);
 
 // Support agents and logistics partners
-router.get('/support-agents', getSupportAgents);
-router.get('/logistics-partners', getLogisticsPartners);
+router.get('/support-agents', checkPermission('users', 'view'), getSupportAgents);
+router.get('/logistics-partners', checkPermission('orders', 'view'), getLogisticsPartners);
 
 // Payment management routes
-router.get('/payments', getPayments);
-router.get('/payments/stats', getPaymentStats);
+router.get('/payments', checkPermission('financial', 'view'), getPayments);
+router.get('/payments/stats', checkPermission('financial', 'view'), getPaymentStats);
 
 // Analytics routes
-router.get('/analytics', getAnalytics);
+router.get('/analytics', checkPermission('reports', 'view'), getAnalytics);
 
 // Staff management routes
-router.get('/staff', getStaff);
-router.patch('/staff/:userId/status', toggleStaffStatus);
+router.get('/staff', checkPermission('users', 'view'), getStaff);
+router.patch('/staff/:userId/status', checkPermission('users', 'update'), toggleStaffStatus);
 
 // Branch management routes
-router.get('/branches', getBranches);
-router.get('/branches/coordinates-status', getBranchesCoordinatesStatus);
-router.get('/branches/:branchId/coordinates', getBranchCoordinates);
-router.put('/branches/:branchId/coordinates', updateBranchCoordinates);
-router.put('/branches/:branchId/delivery-pricing', updateBranchDeliveryPricing);
+router.get('/branches', checkPermission('branches', 'view'), getBranches);
+router.get('/branches/coordinates-status', checkPermission('branches', 'view'), getBranchesCoordinatesStatus);
+router.get('/branches/:branchId/coordinates', checkPermission('branches', 'view'), getBranchCoordinates);
+router.put('/branches/:branchId/coordinates', checkPermission('branches', 'update'), updateBranchCoordinates);
+router.put('/branches/:branchId/delivery-pricing', checkPermission('services', 'update'), updateBranchDeliveryPricing);
 
 // Delivery pricing routes
-router.get('/delivery-pricing', getDeliveryPricing);
-router.put('/delivery-pricing', updateDeliveryPricing);
+router.get('/delivery-pricing', checkPermission('services', 'view'), getDeliveryPricing);
+router.put('/delivery-pricing', checkPermission('services', 'update'), updateDeliveryPricing);
 
-// Notification routes
+// Notification routes (no permission check - user's own notifications)
 router.get('/notifications', getNotifications);
 router.get('/notifications/unread-count', getUnreadNotificationCount);
 router.put('/notifications/mark-read', markNotificationsAsRead);
 router.put('/notifications/mark-all-read', markAllNotificationsAsRead);
+
+// Center Admin management routes (requires users permissions)
+router.post('/center-admins', checkPermission('users', 'create'), createCenterAdmin);
+router.get('/center-admins', checkPermission('users', 'view'), getCenterAdmins);
+router.delete('/center-admins/:id', checkPermission('users', 'delete'), deactivateCenterAdmin);
+router.put('/center-admins/:id/reactivate', checkPermission('users', 'update'), reactivateCenterAdmin);
 
 module.exports = router;

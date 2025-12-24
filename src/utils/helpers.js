@@ -145,8 +145,9 @@ const calculateOrderTotal = (items, deliveryCharge = 0, discount = 0, taxRate = 
     }
   });
 
-  const discountAmount = (subtotal * discount) / 100;
-  const taxableAmount = subtotal + deliveryCharge + expressCharge - discountAmount;
+  // Discount is now a fixed amount (for self service discount), not percentage
+  const discountAmount = discount;
+  const taxableAmount = Math.max(0, subtotal + deliveryCharge + expressCharge - discountAmount);
   const tax = taxableAmount * taxRate;
   const total = taxableAmount + tax;
 

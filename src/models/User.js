@@ -76,6 +76,30 @@ const userSchema = new mongoose.Schema({
     enum: Object.values(WORKER_TYPES),
     default: WORKER_TYPES.GENERAL
   },
+  
+  // RBAC: Granular Permissions (for admin/center_admin/staff roles)
+  // Using Mixed type to support both Admin and Center Admin permission structures
+  permissions: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  
+  // RBAC: Admin metadata - who created this user
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'createdByModel'
+  },
+  createdByModel: {
+    type: String,
+    enum: ['SuperAdmin', 'User'],
+    default: 'SuperAdmin'
+  },
+  
+  // RBAC: Staff created by this admin
+  staffCreated: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   // Rewards
   rewardPoints: {
     type: Number,
@@ -161,6 +185,46 @@ userSchema.methods.generatePasswordResetToken = function() {
   this.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
   
   return token;
+};
+
+// RBAC: Check if user has specific permission
+userSchema.methods.hasPermission = function(module, action) {
+  // SuperAdmin has all permissions
+  if (this.role === USER_ROLES.SUPERADMIN) {
+    return true;
+  }
+  
+  // Check if permissions object exists
+  if (!this.permissions || !this.permissions[module]) {
+    return false;
+  }
+  
+  // Check specific action permission
+  return this.permissions[module][action] === true;
+};
+
+// RBAC: Check if user has any permission in a module
+userSchema.methods.hasModuleAccess = function(module) {
+  if (this.role === USER_ROLES.SUPERADMIN) {
+    return true;
+  }
+  
+  if (!this.permissions || !this.permissions[module]) {
+    return false;
+  }
+  
+  // Check if any action is permitted in this module
+  const modulePerms = this.permissions[module];
+  return Object.values(modulePerms).some(value => value === true);
+};
+
+// RBAC: Get all permissions as flat object for token/response
+userSchema.methods.getPermissionsSummary = function() {
+  if (this.role === USER_ROLES.SUPERADMIN) {
+    return { fullAccess: true };
+  }
+  
+  return this.permissions || {};
 };
 
 module.exports = mongoose.model('User', userSchema);

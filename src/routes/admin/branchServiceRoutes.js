@@ -11,13 +11,13 @@ router.use(protect)
 
 // Get services for a specific branch
 router.get('/:branchId/services', 
-  restrictTo('admin', 'super_admin', 'center_admin', 'branch_manager'), 
+  restrictTo('admin', 'superadmin', 'center_admin'), 
   getBranchServices
 )
 
 // Bulk assign services to branch
 router.post('/:branchId/services/bulk', 
-  restrictTo('admin', 'super_admin', 'center_admin'), 
+  restrictTo('admin', 'superadmin'), 
   bulkAssignServices
 )
 

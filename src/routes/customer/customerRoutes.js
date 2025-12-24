@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect, requireEmailVerification } = require('../../middlewares/auth');
+const Branch = require('../../models/Branch');
 const {
   getAddresses,
   getAddress,
@@ -37,6 +38,54 @@ const router = express.Router();
 
 // Apply authentication to all routes
 router.use(protect);
+
+// Get branches for self service selection
+router.get('/branches', async (req, res) => {
+  try {
+    const { city, pincode } = req.query;
+    
+    const query = { isActive: true };
+    
+    // Filter by city if provided
+    if (city) {
+      query['address.city'] = { $regex: city, $options: 'i' };
+    }
+    
+    // Filter by service area pincode if provided
+    if (pincode) {
+      query['serviceAreas.pincode'] = pincode;
+    }
+    
+    const branches = await Branch.find(query)
+      .select('name code address contact operatingHours serviceAreas')
+      .lean();
+    
+    // Format response with relevant info for customers
+    const formattedBranches = branches.map(branch => ({
+      _id: branch._id,
+      name: branch.name,
+      code: branch.code,
+      address: {
+        addressLine1: branch.address?.addressLine1,
+        city: branch.address?.city,
+        pincode: branch.address?.pincode
+      },
+      phone: branch.contact?.phone,
+      operatingHours: branch.operatingHours
+    }));
+    
+    res.json({
+      success: true,
+      data: { branches: formattedBranches }
+    });
+  } catch (error) {
+    console.error('Get branches error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch branches'
+    });
+  }
+});
 
 // Address routes
 router.route('/addresses')

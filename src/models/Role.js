@@ -116,12 +116,12 @@ const roleSchema = new mongoose.Schema({
   // Creation Info
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CenterAdmin',
+    ref: 'SuperAdmin',
     required: true
   },
   lastModifiedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'CenterAdmin'
+    ref: 'SuperAdmin'
   }
 }, {
   timestamps: true
@@ -230,9 +230,9 @@ roleSchema.methods.canPerformAction = function(module, action, context = {}) {
 roleSchema.statics.createDefaultRoles = async function(createdBy) {
   const defaultRoles = [
     {
-      name: 'branch_manager',
-      displayName: 'Branch Manager',
-      description: 'Full control over branch operations',
+      name: 'center_admin',
+      displayName: 'Center Admin',
+      description: 'Full control over center/branch operations',
       level: 2,
       category: 'management',
       permissions: [

@@ -10,6 +10,16 @@ const {
   formatPaginationResponse
 } = require('../../utils/helpers');
 
+// Helper function to get branch for center_admin/admin
+const getUserBranch = async (user) => {
+  // If user has assignedBranch, use that
+  if (user.assignedBranch) {
+    return await Branch.findById(user.assignedBranch);
+  }
+  // Fallback: check if user is set as branch manager
+  return await Branch.findOne({ manager: user._id });
+};
+
 // @desc    Get branch dashboard data
 // @route   GET /api/branch/dashboard
 // @access  Private (Branch Manager)
@@ -17,7 +27,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   const user = req.user;
   
   // Get the branch assigned to this manager
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned to this manager', 404);
   }
@@ -126,7 +136,7 @@ const getOrders = asyncHandler(async (req, res) => {
   const user = req.user;
   const { page = 1, limit = 20, status, search, priority } = req.query;
   
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned to this manager', 404);
   }
@@ -179,7 +189,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const { status, notes } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -221,7 +231,7 @@ const assignStaffToOrder = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const { staffId, estimatedTime } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -277,7 +287,7 @@ const assignStaffToOrder = asyncHandler(async (req, res) => {
 const getStaff = asyncHandler(async (req, res) => {
   const user = req.user;
   
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -356,7 +366,7 @@ const toggleStaffAvailability = asyncHandler(async (req, res) => {
   const user = req.user;
   const { staffId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -381,7 +391,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
   const user = req.user;
   const { timeframe = '7d' } = req.query;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -454,7 +464,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
 const getSettings = asyncHandler(async (req, res) => {
   const user = req.user;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -485,7 +495,7 @@ const updateSettings = asyncHandler(async (req, res) => {
   const user = req.user;
   const { operatingHours, settings } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -522,7 +532,7 @@ const { INVENTORY_ITEMS } = require('../../config/constants');
 const getInventory = asyncHandler(async (req, res) => {
   const user = req.user;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -553,7 +563,7 @@ const addInventoryItem = asyncHandler(async (req, res) => {
   const user = req.user;
   const { itemName, currentStock, minThreshold, maxCapacity, unit, unitCost, costPerUnit, supplier, expiryDate } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -609,7 +619,7 @@ const updateInventoryStock = asyncHandler(async (req, res) => {
   const { itemId } = req.params;
   const { quantity, action, reason } = req.body; // action: 'add' or 'consume'
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -645,7 +655,7 @@ const deleteInventoryItem = asyncHandler(async (req, res) => {
   const user = req.user;
   const { itemId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -676,7 +686,7 @@ const addWorker = asyncHandler(async (req, res) => {
   const user = req.user;
   const { name, email, phone, password, workerType } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -722,7 +732,7 @@ const updateWorker = asyncHandler(async (req, res) => {
   const { workerId } = req.params;
   const { name, phone, workerType, isActive } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -756,7 +766,7 @@ const deleteWorker = asyncHandler(async (req, res) => {
   const user = req.user;
   const { workerId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -859,7 +869,7 @@ const Service = require('../../models/Service');
 const getBranchServices = asyncHandler(async (req, res) => {
   const user = req.user;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -941,7 +951,7 @@ const createBranchService = asyncHandler(async (req, res) => {
   const user = req.user;
   const { name, displayName, description, category, icon, turnaroundTime, isExpressAvailable } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1009,7 +1019,7 @@ const deleteBranchService = asyncHandler(async (req, res) => {
   const user = req.user;
   const { serviceId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1036,7 +1046,7 @@ const toggleBranchService = asyncHandler(async (req, res) => {
   const user = req.user;
   const { serviceId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1116,7 +1126,7 @@ const updateBranchServiceSettings = asyncHandler(async (req, res) => {
   const { serviceId } = req.params;
   const { priceMultiplier, customTurnaround, displayName, description, category, icon } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1200,7 +1210,7 @@ const getServiceItems = asyncHandler(async (req, res) => {
   const user = req.user;
   const { serviceId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1243,7 +1253,7 @@ const addServiceItem = asyncHandler(async (req, res) => {
   const { serviceId } = req.params;
   const { name, category, basePrice, description } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1294,7 +1304,7 @@ const updateServiceItem = asyncHandler(async (req, res) => {
   const { serviceId, itemId } = req.params;
   const { name, category, basePrice, description } = req.body;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }
@@ -1337,7 +1347,7 @@ const deleteServiceItem = asyncHandler(async (req, res) => {
   const user = req.user;
   const { serviceId, itemId } = req.params;
 
-  const branch = await Branch.findOne({ manager: user._id });
+  const branch = await getUserBranch(user);
   if (!branch) {
     return sendError(res, 'NO_BRANCH', 'No branch assigned', 404);
   }

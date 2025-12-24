@@ -28,20 +28,20 @@ const isCustomer = roleCheck(USER_ROLES.CUSTOMER);
 const isAdmin = roleCheck(USER_ROLES.ADMIN);
 const isBranchManager = roleCheck(USER_ROLES.BRANCH_MANAGER);
 const isSupportAgent = roleCheck(USER_ROLES.SUPPORT_AGENT);
-const isCenterAdmin = roleCheck(USER_ROLES.CENTER_ADMIN);
+const isSuperAdmin = roleCheck(USER_ROLES.SUPERADMIN);
 
 // Combined role checkers
-const isAdminOrCenterAdmin = roleCheck(USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN);
-const isBranchManagerOrAdmin = roleCheck(USER_ROLES.BRANCH_MANAGER, USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN);
-const isSupportOrAdmin = roleCheck(USER_ROLES.SUPPORT_AGENT, USER_ROLES.ADMIN, USER_ROLES.CENTER_ADMIN);
+const isAdminOrSuperAdmin = roleCheck(USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN);
+const isCenterAdminOrAdmin = roleCheck(USER_ROLES.CENTER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN);
+const isSupportOrAdmin = roleCheck(USER_ROLES.SUPPORT_AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN);
 
 // Check if user can access specific branch
 const canAccessBranch = (req, res, next) => {
   const { branchId } = req.params;
   const user = req.user;
 
-  // Center Admin can access all branches
-  if (user.role === USER_ROLES.CENTER_ADMIN) {
+  // Super Admin can access all branches
+  if (user.role === USER_ROLES.SUPERADMIN) {
     return next();
   }
 
@@ -130,9 +130,9 @@ module.exports = {
   isAdmin,
   isBranchManager,
   isSupportAgent,
-  isCenterAdmin,
-  isAdminOrCenterAdmin,
-  isBranchManagerOrAdmin,
+  isSuperAdmin,
+  isAdminOrSuperAdmin,
+  isCenterAdminOrAdmin,
   isSupportOrAdmin,
   canAccessBranch,
   canAccessOrder

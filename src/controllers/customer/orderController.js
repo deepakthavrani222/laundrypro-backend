@@ -30,33 +30,86 @@ const createOrder = asyncHandler(async (req, res) => {
     isExpress,
     specialInstructions,
     branchId, // Customer selected branch
-    deliveryDetails // Distance-based delivery details from frontend
+    deliveryDetails, // Distance-based delivery details from frontend
+    // New service type fields
+    serviceType = 'full_service', // full_service, self_drop_self_pickup, self_drop_home_delivery, home_pickup_self_pickup
+    selectedBranchId // Branch for self drop-off/pickup
   } = req.body;
 
   const customer = await User.findById(req.user._id);
   
-  // Get addresses from Address collection (not embedded in User)
-  const pickupAddress = await Address.findOne({ _id: pickupAddressId, userId: req.user._id });
-  const deliveryAddress = await Address.findOne({ _id: deliveryAddressId, userId: req.user._id });
+  // Determine pickup and delivery types based on service type
+  let pickupType = 'logistics';
+  let deliveryType = 'logistics';
   
-  if (!pickupAddress || !deliveryAddress) {
-    return sendError(res, 'ADDRESS_NOT_FOUND', 'Pickup or delivery address not found', 404);
+  switch (serviceType) {
+    case 'self_drop_self_pickup':
+      pickupType = 'self';
+      deliveryType = 'self';
+      break;
+    case 'self_drop_home_delivery':
+      pickupType = 'self';
+      deliveryType = 'logistics';
+      break;
+    case 'home_pickup_self_pickup':
+      pickupType = 'logistics';
+      deliveryType = 'self';
+      break;
+    default: // full_service
+      pickupType = 'logistics';
+      deliveryType = 'logistics';
+  }
+
+  // For self service, branch selection is required
+  let selectedBranch = null;
+  if (pickupType === 'self' || deliveryType === 'self') {
+    if (!selectedBranchId) {
+      return sendError(res, 'BRANCH_REQUIRED', 'Please select a branch for self drop-off/pickup', 400);
+    }
+    selectedBranch = await Branch.findOne({ _id: selectedBranchId, isActive: true });
+    if (!selectedBranch) {
+      return sendError(res, 'BRANCH_NOT_FOUND', 'Selected branch not found or inactive', 404);
+    }
+  }
+
+  // For self drop-off, pickup address is optional (use branch address)
+  // For self pickup, delivery address is optional (use branch address)
+  let pickupAddress = null;
+  let deliveryAddress = null;
+
+  if (pickupType === 'logistics') {
+    pickupAddress = await Address.findOne({ _id: pickupAddressId, userId: req.user._id });
+    if (!pickupAddress) {
+      return sendError(res, 'ADDRESS_NOT_FOUND', 'Pickup address not found', 404);
+    }
+  }
+
+  if (deliveryType === 'logistics') {
+    deliveryAddress = await Address.findOne({ _id: deliveryAddressId, userId: req.user._id });
+    if (!deliveryAddress) {
+      return sendError(res, 'ADDRESS_NOT_FOUND', 'Delivery address not found', 404);
+    }
   }
 
   let branch;
 
-  // If customer selected a branch, use that
-  if (branchId) {
+  // If customer selected a branch for self service, use that
+  if (selectedBranch) {
+    branch = selectedBranch;
+  } else if (branchId) {
     branch = await Branch.findOne({ _id: branchId, isActive: true });
     if (!branch) {
       return sendError(res, 'BRANCH_NOT_FOUND', 'Selected branch not found or inactive', 404);
     }
   } else {
     // Find available branch for pickup pincode (or use default branch if none found)
-    branch = await Branch.findOne({
-      'serviceAreas.pincode': pickupAddress.pincode,
-      isActive: true
-    });
+    const addressForBranch = pickupAddress || deliveryAddress;
+    if (addressForBranch) {
+      branch = await Branch.findOne({
+        'serviceAreas.pincode': addressForBranch.pincode,
+        isActive: true
+      });
+    }
 
     // If no branch found for pincode, get any active branch (for demo purposes)
     if (!branch) {
@@ -65,21 +118,22 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // If still no branch, create a default one for demo
     if (!branch) {
+      const defaultPincode = pickupAddress?.pincode || deliveryAddress?.pincode || '000000';
       branch = await Branch.create({
         name: 'Main Branch',
         code: 'MAIN001',
         address: {
           addressLine1: 'Demo Address',
-          city: pickupAddress.city,
+          city: pickupAddress?.city || deliveryAddress?.city || 'City',
           state: 'India',
-          pincode: pickupAddress.pincode
+          pincode: defaultPincode
         },
         contact: {
           phone: '9999999999',
           email: 'branch@demo.com'
         },
         serviceAreas: [{
-          pincode: pickupAddress.pincode,
+          pincode: defaultPincode,
           deliveryCharge: 30,
           isActive: true
         }],
@@ -114,16 +168,35 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Calculate order total
   // Use delivery charge from distance calculation if available, otherwise use branch service area charge
+  // Self service gets discount on delivery charges
   let deliveryCharge = 30; // default
-  if (deliveryDetails && typeof deliveryDetails.deliveryCharge === 'number') {
-    deliveryCharge = deliveryDetails.deliveryCharge;
+  let selfServiceDiscount = 0;
+  
+  if (pickupType === 'self' && deliveryType === 'self') {
+    // Full self service - no delivery charge
+    deliveryCharge = 0;
+    selfServiceDiscount = 50; // ₹50 discount for full self service
+  } else if (pickupType === 'self' || deliveryType === 'self') {
+    // Partial self service - half delivery charge
+    if (deliveryDetails && typeof deliveryDetails.deliveryCharge === 'number') {
+      deliveryCharge = Math.round(deliveryDetails.deliveryCharge / 2);
+    } else {
+      deliveryCharge = 15; // half of default
+    }
+    selfServiceDiscount = 25; // ₹25 discount for partial self service
   } else {
-    const serviceArea = branch.serviceAreas.find(area => area.pincode === pickupAddress.pincode);
-    if (serviceArea) {
-      deliveryCharge = serviceArea.deliveryCharge;
+    // Full logistics service
+    if (deliveryDetails && typeof deliveryDetails.deliveryCharge === 'number') {
+      deliveryCharge = deliveryDetails.deliveryCharge;
+    } else if (pickupAddress) {
+      const serviceArea = branch.serviceAreas.find(area => area.pincode === pickupAddress.pincode);
+      if (serviceArea) {
+        deliveryCharge = serviceArea.deliveryCharge;
+      }
     }
   }
-  const pricing = calculateOrderTotal(items, deliveryCharge, 0, 0.18); // 18% tax
+  
+  const pricing = calculateOrderTotal(items, deliveryCharge, selfServiceDiscount, 0.18); // 18% tax
 
   // Generate order number
   const orderCount = await Order.countDocuments();
@@ -134,7 +207,14 @@ const createOrder = asyncHandler(async (req, res) => {
     orderNumber,
     customer: req.user._id,
     branch: branch._id,
-    pickupAddress: {
+    // Service type fields
+    serviceType,
+    pickupType,
+    deliveryType,
+    selectedBranch: selectedBranch?._id || null,
+    selfServiceDiscount,
+    // Pickup address (null for self drop-off)
+    pickupAddress: pickupAddress ? {
       name: pickupAddress.name,
       phone: pickupAddress.phone,
       addressLine1: pickupAddress.addressLine1,
@@ -142,8 +222,9 @@ const createOrder = asyncHandler(async (req, res) => {
       landmark: pickupAddress.landmark,
       city: pickupAddress.city,
       pincode: pickupAddress.pincode
-    },
-    deliveryAddress: {
+    } : null,
+    // Delivery address (null for self pickup)
+    deliveryAddress: deliveryAddress ? {
       name: deliveryAddress.name,
       phone: deliveryAddress.phone,
       addressLine1: deliveryAddress.addressLine1,
@@ -151,7 +232,7 @@ const createOrder = asyncHandler(async (req, res) => {
       landmark: deliveryAddress.landmark,
       city: deliveryAddress.city,
       pincode: deliveryAddress.pincode
-    },
+    } : null,
     pickupDate: new Date(pickupDate),
     pickupTimeSlot,
     estimatedDeliveryDate: calculateDeliveryDate(pickupDate, isExpress),

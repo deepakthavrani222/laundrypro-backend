@@ -2,9 +2,9 @@
 const USER_ROLES = {
   CUSTOMER: 'customer',
   ADMIN: 'admin',
-  BRANCH_MANAGER: 'branch_manager',
+  CENTER_ADMIN: 'center_admin', // Previously branch_manager
   SUPPORT_AGENT: 'support_agent',
-  CENTER_ADMIN: 'center_admin',
+  SUPERADMIN: 'superadmin', // Previously center_admin - Full system access
   STAFF: 'staff' // Washer/Ironer
 };
 
@@ -285,7 +285,8 @@ const CONSUMPTION_RATES = {
 const REFUND_LIMITS = {
   [USER_ROLES.SUPPORT_AGENT]: 0,
   [USER_ROLES.ADMIN]: 500,
-  [USER_ROLES.CENTER_ADMIN]: Infinity
+  [USER_ROLES.CENTER_ADMIN]: 1000,
+  [USER_ROLES.SUPERADMIN]: Infinity
 };
 
 // OpenRouteService API Configuration

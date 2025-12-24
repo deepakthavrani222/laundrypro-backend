@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect, restrictTo } = require('../../middlewares/auth');
+const { requireCenterAdminPermission } = require('../../middlewares/centerAdminPermission');
 const {
   getDashboard,
   getOrders,
@@ -37,56 +38,56 @@ const router = express.Router();
 
 // Apply authentication and role restriction
 router.use(protect);
-router.use(restrictTo('branch_manager', 'admin', 'center_admin'));
+router.use(restrictTo('center_admin', 'admin', 'superadmin'));
 
-// Dashboard
+// Dashboard - requires view permission on any module (basic access)
 router.get('/dashboard', getDashboard);
 
-// Orders
-router.get('/orders', getOrders);
-router.put('/orders/:orderId/status', updateOrderStatus);
-router.put('/orders/:orderId/assign', assignStaffToOrder);
+// Orders - requires orders permissions
+router.get('/orders', requireCenterAdminPermission('orders', 'view'), getOrders);
+router.put('/orders/:orderId/status', requireCenterAdminPermission('orders', 'update'), updateOrderStatus);
+router.put('/orders/:orderId/assign', requireCenterAdminPermission('orders', 'assign'), assignStaffToOrder);
 
-// Staff
-router.get('/staff', getStaff);
-router.patch('/staff/:staffId/availability', toggleStaffAvailability);
+// Staff - requires staff permissions
+router.get('/staff', requireCenterAdminPermission('staff', 'view'), getStaff);
+router.patch('/staff/:staffId/availability', requireCenterAdminPermission('staff', 'update'), toggleStaffAvailability);
 
-// Workers Management
-router.get('/worker-types', getWorkerTypes);
-router.post('/workers', addWorker);
-router.put('/workers/:workerId', updateWorker);
-router.delete('/workers/:workerId', deleteWorker);
+// Workers Management - requires staff permissions
+router.get('/worker-types', requireCenterAdminPermission('staff', 'view'), getWorkerTypes);
+router.post('/workers', requireCenterAdminPermission('staff', 'create'), addWorker);
+router.put('/workers/:workerId', requireCenterAdminPermission('staff', 'update'), updateWorker);
+router.delete('/workers/:workerId', requireCenterAdminPermission('staff', 'delete'), deleteWorker);
 
-// Inventory
-router.get('/inventory', getInventory);
-router.post('/inventory', addInventoryItem);
-router.put('/inventory/:itemId/stock', updateInventoryStock);
-router.delete('/inventory/:itemId', deleteInventoryItem);
+// Inventory - requires inventory permissions
+router.get('/inventory', requireCenterAdminPermission('inventory', 'view'), getInventory);
+router.post('/inventory', requireCenterAdminPermission('inventory', 'create'), addInventoryItem);
+router.put('/inventory/:itemId/stock', requireCenterAdminPermission('inventory', 'update'), updateInventoryStock);
+router.delete('/inventory/:itemId', requireCenterAdminPermission('inventory', 'delete'), deleteInventoryItem);
 
-// Analytics
-router.get('/analytics', getAnalytics);
+// Analytics/Performance - requires performance permissions
+router.get('/analytics', requireCenterAdminPermission('performance', 'view'), getAnalytics);
 
-// Services Management (enable/disable services for branch + create custom services)
-router.get('/services', getBranchServices);
-router.post('/services', createBranchService);
-router.put('/services/:serviceId/toggle', toggleBranchService);
-router.put('/services/:serviceId/settings', updateBranchServiceSettings);
-router.delete('/services/:serviceId', deleteBranchService);
+// Services Management - requires services permissions
+router.get('/services', requireCenterAdminPermission('services', 'view'), getBranchServices);
+router.post('/services', requireCenterAdminPermission('services', 'create'), createBranchService);
+router.put('/services/:serviceId/toggle', requireCenterAdminPermission('services', 'update'), toggleBranchService);
+router.put('/services/:serviceId/settings', requireCenterAdminPermission('services', 'update'), updateBranchServiceSettings);
+router.delete('/services/:serviceId', requireCenterAdminPermission('services', 'delete'), deleteBranchService);
 
-// Service Items Management (add items to services)
-router.get('/services/:serviceId/items', getServiceItems);
-router.post('/services/:serviceId/items', addServiceItem);
-router.put('/services/:serviceId/items/:itemId', updateServiceItem);
-router.delete('/services/:serviceId/items/:itemId', deleteServiceItem);
+// Service Items Management - requires services permissions
+router.get('/services/:serviceId/items', requireCenterAdminPermission('services', 'view'), getServiceItems);
+router.post('/services/:serviceId/items', requireCenterAdminPermission('services', 'create'), addServiceItem);
+router.put('/services/:serviceId/items/:itemId', requireCenterAdminPermission('services', 'update'), updateServiceItem);
+router.delete('/services/:serviceId/items/:itemId', requireCenterAdminPermission('services', 'delete'), deleteServiceItem);
 
-// Notifications
+// Notifications - no permission required (basic functionality)
 router.get('/notifications', getNotifications);
 router.get('/notifications/unread-count', getUnreadNotificationCount);
 router.put('/notifications/mark-read', markNotificationsAsRead);
 router.put('/notifications/mark-all-read', markAllNotificationsAsRead);
 
-// Settings
-router.get('/settings', getSettings);
-router.put('/settings', updateSettings);
+// Settings - requires settings permissions
+router.get('/settings', requireCenterAdminPermission('settings', 'view'), getSettings);
+router.put('/settings', requireCenterAdminPermission('settings', 'update'), updateSettings);
 
 module.exports = router;
