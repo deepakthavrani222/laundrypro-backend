@@ -1,12 +1,12 @@
 const express = require('express')
 const { body, query, param } = require('express-validator')
-const { authenticateCenterAdmin } = require('../middlewares/centerAdminAuthSimple')
-const centerAdminAnalyticsController = require('../controllers/centerAdminAnalyticsController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const superAdminAnalyticsController = require('../controllers/superAdminAnalyticsController')
 
 const router = express.Router()
 
-// Apply center admin authentication to all routes
-router.use(authenticateCenterAdmin)
+// Apply super admin authentication to all routes
+router.use(authenticateSuperAdmin)
 
 // Validation rules
 const generateRetentionAnalysisValidation = [
@@ -162,51 +162,51 @@ const getAnalyticsValidation = [
 
 // Routes
 
-// GET /api/center-admin/analytics/overview - Get analytics dashboard overview
+// GET /api/superadmin/analytics/overview - Get analytics dashboard overview
 router.get('/overview', 
   query('timeframe')
     .optional()
     .isIn(['7d', '30d', '90d', '1y'])
     .withMessage('Invalid timeframe'),
-  centerAdminAnalyticsController.getAnalyticsOverview
+  superAdminAnalyticsController.getAnalyticsOverview
 )
 
-// POST /api/center-admin/analytics/customer-retention - Generate customer retention analysis
+// POST /api/superadmin/analytics/customer-retention - Generate customer retention analysis
 router.post('/customer-retention', 
   generateRetentionAnalysisValidation,
-  centerAdminAnalyticsController.generateCustomerRetentionAnalysis
+  superAdminAnalyticsController.generateCustomerRetentionAnalysis
 )
 
-// POST /api/center-admin/analytics/branch-performance - Generate branch performance analysis
+// POST /api/superadmin/analytics/branch-performance - Generate branch performance analysis
 router.post('/branch-performance', 
   generateBranchAnalysisValidation,
-  centerAdminAnalyticsController.generateBranchPerformanceAnalysis
+  superAdminAnalyticsController.generateBranchPerformanceAnalysis
 )
 
-// POST /api/center-admin/analytics/revenue-forecast - Generate revenue forecast
+// POST /api/superadmin/analytics/revenue-forecast - Generate revenue forecast
 router.post('/revenue-forecast', 
   generateRevenueForecastValidation,
-  centerAdminAnalyticsController.generateRevenueForecast
+  superAdminAnalyticsController.generateRevenueForecast
 )
 
-// POST /api/center-admin/analytics/expansion-analysis - Generate expansion analysis
+// POST /api/superadmin/analytics/expansion-analysis - Generate expansion analysis
 router.post('/expansion-analysis', 
   generateExpansionAnalysisValidation,
-  centerAdminAnalyticsController.generateExpansionAnalysis
+  superAdminAnalyticsController.generateExpansionAnalysis
 )
 
-// GET /api/center-admin/analytics - Get all analytics
+// GET /api/superadmin/analytics - Get all analytics
 router.get('/', 
   getAnalyticsValidation,
-  centerAdminAnalyticsController.getAnalytics
+  superAdminAnalyticsController.getAnalytics
 )
 
-// GET /api/center-admin/analytics/:analyticsId - Get single analytics
+// GET /api/superadmin/analytics/:analyticsId - Get single analytics
 router.get('/:analyticsId', 
   param('analyticsId')
     .isMongoId()
     .withMessage('Invalid analytics ID'),
-  centerAdminAnalyticsController.getAnalyticsById
+  superAdminAnalyticsController.getAnalyticsById
 )
 
 module.exports = router

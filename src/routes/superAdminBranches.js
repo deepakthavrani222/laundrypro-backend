@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminBranchController = require('../controllers/centerAdminBranchController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminBranchController = require('../controllers/superAdminBranchController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body, param, query } = require('express-validator')
 
 // Validation rules
@@ -74,27 +75,27 @@ const validateStaffAddition = [
 ]
 
 // All routes require authentication and branches permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('branches'))
 
 // Get all branches
 router.get('/',
   logAdminAction('view_branches', 'branches'),
-  centerAdminBranchController.getBranches
+  superAdminBranchController.getBranches
 )
 
 // Get single branch
 router.get('/:branchId',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   logAdminAction('view_branch_details', 'branches'),
-  centerAdminBranchController.getBranch
+  superAdminBranchController.getBranch
 )
 
 // Create new branch
 router.post('/',
   validateBranchCreation,
   logAdminAction('create_branch', 'branches'),
-  centerAdminBranchController.createBranch
+  superAdminBranchController.createBranch
 )
 
 // Update branch
@@ -102,14 +103,14 @@ router.put('/:branchId',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   validateBranchUpdate,
   logAdminAction('update_branch', 'branches'),
-  centerAdminBranchController.updateBranch
+  superAdminBranchController.updateBranch
 )
 
 // Delete branch
 router.delete('/:branchId',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   logAdminAction('delete_branch', 'branches'),
-  centerAdminBranchController.deleteBranch
+  superAdminBranchController.deleteBranch
 )
 
 // Assign manager
@@ -117,7 +118,7 @@ router.post('/:branchId/manager',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   validateManagerAssignment,
   logAdminAction('assign_branch_manager', 'branches'),
-  centerAdminBranchController.assignManager
+  superAdminBranchController.assignManager
 )
 
 // Add staff
@@ -125,7 +126,7 @@ router.post('/:branchId/staff',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   validateStaffAddition,
   logAdminAction('add_branch_staff', 'branches'),
-  centerAdminBranchController.addStaff
+  superAdminBranchController.addStaff
 )
 
 // Remove staff
@@ -133,7 +134,7 @@ router.delete('/:branchId/staff/:userId',
   param('branchId').isMongoId().withMessage('Valid branch ID is required'),
   param('userId').isMongoId().withMessage('Valid user ID is required'),
   logAdminAction('remove_branch_staff', 'branches'),
-  centerAdminBranchController.removeStaff
+  superAdminBranchController.removeStaff
 )
 
 // Get branch analytics
@@ -142,7 +143,7 @@ router.get('/:branchId/analytics',
   query('startDate').isISO8601().withMessage('Valid start date is required'),
   query('endDate').isISO8601().withMessage('Valid end date is required'),
   logAdminAction('view_branch_analytics', 'branches'),
-  centerAdminBranchController.getBranchAnalytics
+  superAdminBranchController.getBranchAnalytics
 )
 
 module.exports = router

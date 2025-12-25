@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const logisticsController = require('../controllers/centerAdminLogisticsController');
-const { authenticateCenterAdmin } = require('../middlewares/centerAdminAuth');
+const logisticsController = require('../controllers/superAdminLogisticsController');
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple');
 
 // All routes require center admin authentication
-router.use(authenticateCenterAdmin);
+router.use(authenticateSuperAdmin);
 
 // Get all partners (for dropdown in orders page)
 router.get('/', logisticsController.getAllPartners);

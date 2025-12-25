@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminPricingController = require('../controllers/centerAdminPricingController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminPricingController = require('../controllers/superAdminPricingController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body, param, query } = require('express-validator')
 
 // Validation rules
@@ -75,19 +76,19 @@ const validateClonePricing = [
 ]
 
 // All routes require authentication and settings permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('settings'))
 
 // Get all pricing configurations
 router.get('/',
   logAdminAction('view_pricing_configurations', 'settings'),
-  centerAdminPricingController.getPricingConfigurations
+  superAdminPricingController.getPricingConfigurations
 )
 
 // Get active pricing
 router.get('/active',
   logAdminAction('view_active_pricing', 'settings'),
-  centerAdminPricingController.getActivePricing
+  superAdminPricingController.getActivePricing
 )
 
 // Get service items
@@ -96,38 +97,38 @@ router.get('/service-items',
     .optional()
     .isIn(['wash_fold', 'dry_cleaning', 'iron_press', 'shoe_cleaning', 'additional'])
     .withMessage('Invalid service category'),
-  centerAdminPricingController.getServiceItems
+  superAdminPricingController.getServiceItems
 )
 
 // Get discount policies
 router.get('/discount-policies',
-  centerAdminPricingController.getDiscountPolicies
+  superAdminPricingController.getDiscountPolicies
 )
 
 // Calculate price
 router.post('/calculate',
   validatePriceCalculation,
-  centerAdminPricingController.calculatePrice
+  superAdminPricingController.calculatePrice
 )
 
 // Validate discount code
 router.post('/validate-discount',
   validateDiscountCode,
-  centerAdminPricingController.validateDiscountCode
+  superAdminPricingController.validateDiscountCode
 )
 
 // Get single pricing configuration
 router.get('/:pricingId',
   param('pricingId').isMongoId().withMessage('Valid pricing ID is required'),
   logAdminAction('view_pricing_configuration', 'settings'),
-  centerAdminPricingController.getPricingConfiguration
+  superAdminPricingController.getPricingConfiguration
 )
 
 // Create new pricing configuration
 router.post('/',
   validatePricingCreation,
   logAdminAction('create_pricing_configuration', 'settings'),
-  centerAdminPricingController.createPricingConfiguration
+  superAdminPricingController.createPricingConfiguration
 )
 
 // Update pricing configuration
@@ -135,7 +136,7 @@ router.put('/:pricingId',
   param('pricingId').isMongoId().withMessage('Valid pricing ID is required'),
   validatePricingUpdate,
   logAdminAction('update_pricing_configuration', 'settings'),
-  centerAdminPricingController.updatePricingConfiguration
+  superAdminPricingController.updatePricingConfiguration
 )
 
 // Approve pricing configuration
@@ -146,14 +147,14 @@ router.post('/:pricingId/approve',
     .isBoolean()
     .withMessage('Make active must be a boolean'),
   logAdminAction('approve_pricing_configuration', 'settings'),
-  centerAdminPricingController.approvePricingConfiguration
+  superAdminPricingController.approvePricingConfiguration
 )
 
 // Activate pricing configuration
 router.post('/:pricingId/activate',
   param('pricingId').isMongoId().withMessage('Valid pricing ID is required'),
   logAdminAction('activate_pricing_configuration', 'settings'),
-  centerAdminPricingController.activatePricingConfiguration
+  superAdminPricingController.activatePricingConfiguration
 )
 
 // Clone pricing configuration
@@ -161,7 +162,7 @@ router.post('/:pricingId/clone',
   param('pricingId').isMongoId().withMessage('Valid pricing ID is required'),
   validateClonePricing,
   logAdminAction('clone_pricing_configuration', 'settings'),
-  centerAdminPricingController.clonePricingConfiguration
+  superAdminPricingController.clonePricingConfiguration
 )
 
 module.exports = router

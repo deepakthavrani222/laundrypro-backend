@@ -40,7 +40,8 @@ const centerAdminDashboardController = {
         customerGrowth,
         orderStatusDistribution,
         recentActivities,
-        alerts
+        alerts,
+        systemHealth
       ] = await Promise.all([
         centerAdminDashboardController.getTotalStats(startDate),
         centerAdminDashboardController.getRecentOrders(10),
@@ -49,7 +50,8 @@ const centerAdminDashboardController = {
         centerAdminDashboardController.getCustomerGrowth(startDate),
         centerAdminDashboardController.getOrderStatusDistribution(startDate),
         centerAdminDashboardController.getRecentActivities(10),
-        centerAdminDashboardController.getSystemAlerts()
+        centerAdminDashboardController.getSystemAlerts(),
+        centerAdminDashboardController.getSystemHealth()
       ])
 
       return res.json({
@@ -63,6 +65,7 @@ const centerAdminDashboardController = {
           orderDistribution: orderStatusDistribution,
           recentActivities,
           alerts,
+          systemHealth,
           timeframe,
           generatedAt: new Date().toISOString()
         }
@@ -324,41 +327,107 @@ const centerAdminDashboardController = {
 
     if (failedLogins > 10) {
       alerts.push({
+        id: `alert-failed-logins-${Date.now()}`,
         type: 'security',
         level: 'high',
         message: `${failedLogins} failed login attempts in last 24h`,
-        action: 'Review security logs'
+        action: 'Review security logs',
+        actionUrl: '/superadmin/audit?filter=failed_login'
       })
     }
 
     if (suspiciousActivities > 5) {
       alerts.push({
+        id: `alert-suspicious-${Date.now()}`,
         type: 'security',
         level: 'critical',
         message: `${suspiciousActivities} suspicious activities detected`,
-        action: 'Investigate immediately'
+        action: 'Investigate immediately',
+        actionUrl: '/superadmin/audit?riskLevel=high,critical'
       })
     }
 
     if (highValueOrders > 0) {
       alerts.push({
+        id: `alert-high-value-${Date.now()}`,
         type: 'business',
         level: 'medium',
         message: `${highValueOrders} high-value orders (₹5000+) require review`,
-        action: 'Review orders'
+        action: 'Review orders',
+        actionUrl: '/superadmin/orders?minAmount=5000'
       })
     }
 
     if (systemErrors > 5) {
       alerts.push({
+        id: `alert-system-errors-${Date.now()}`,
         type: 'system',
         level: 'high',
         message: `${systemErrors} system errors in last 24h`,
-        action: 'Check system health'
+        action: 'Check system health',
+        actionUrl: '/superadmin/audit?category=system&status=failure'
       })
     }
 
     return alerts
+  },
+
+  // Get system health metrics
+  getSystemHealth: async function() {
+    const now = new Date()
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+    try {
+      // Count total requests/operations in last 30 days
+      const [totalOperations, failedOperations, recentErrors] = await Promise.all([
+        AuditLog.countDocuments({
+          timestamp: { $gte: last30Days }
+        }),
+        AuditLog.countDocuments({
+          status: 'failure',
+          timestamp: { $gte: last30Days }
+        }),
+        AuditLog.countDocuments({
+          status: 'failure',
+          timestamp: { $gte: last24h }
+        })
+      ])
+
+      // Calculate uptime percentage
+      // Uptime = (Total - Failed) / Total * 100
+      let uptime = 99.9 // Default if no data
+      if (totalOperations > 0) {
+        const successRate = ((totalOperations - failedOperations) / totalOperations) * 100
+        uptime = Math.min(99.99, Math.max(0, successRate))
+      }
+
+      // Determine status based on recent errors
+      let status = 'healthy'
+      if (recentErrors > 50) {
+        status = 'critical'
+      } else if (recentErrors > 20) {
+        status = 'degraded'
+      } else if (recentErrors > 5) {
+        status = 'minor_issues'
+      }
+
+      return {
+        uptime: parseFloat(uptime.toFixed(2)),
+        status,
+        totalOperations,
+        failedOperations,
+        recentErrors,
+        lastChecked: now.toISOString()
+      }
+    } catch (error) {
+      console.error('Error calculating system health:', error)
+      return {
+        uptime: 99.9,
+        status: 'unknown',
+        lastChecked: now.toISOString()
+      }
+    }
   },
 
   // Get detailed analytics

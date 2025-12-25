@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminFinancialController = require('../controllers/centerAdminFinancialController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminFinancialController = require('../controllers/superAdminFinancialController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body, param, query } = require('express-validator')
 
 // Validation rules
@@ -62,7 +63,7 @@ const validateReportGeneration = [
 ]
 
 // All routes require authentication and finances permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('finances'))
 
 // Financial Overview
@@ -72,7 +73,7 @@ router.get('/overview',
     .isIn(['7d', '30d', '90d', '1y'])
     .withMessage('Invalid timeframe'),
   logAdminAction('view_financial_overview', 'financial'),
-  centerAdminFinancialController.getFinancialOverview
+  superAdminFinancialController.getFinancialOverview
 )
 
 // Transactions
@@ -102,13 +103,13 @@ router.get('/transactions',
     .isISO8601()
     .withMessage('Invalid end date'),
   logAdminAction('view_transactions', 'financial'),
-  centerAdminFinancialController.getTransactions
+  superAdminFinancialController.getTransactions
 )
 
 router.get('/transactions/:transactionId',
   param('transactionId').isMongoId().withMessage('Valid transaction ID is required'),
   logAdminAction('view_transaction_details', 'financial'),
-  centerAdminFinancialController.getTransaction
+  superAdminFinancialController.getTransaction
 )
 
 // Refund Management
@@ -116,14 +117,14 @@ router.post('/transactions/:transactionId/approve-refund',
   param('transactionId').isMongoId().withMessage('Valid transaction ID is required'),
   validateRefundApproval,
   logAdminAction('approve_refund', 'financial'),
-  centerAdminFinancialController.approveRefund
+  superAdminFinancialController.approveRefund
 )
 
 router.post('/transactions/:transactionId/reject-refund',
   param('transactionId').isMongoId().withMessage('Valid transaction ID is required'),
   validateRefundRejection,
   logAdminAction('reject_refund', 'financial'),
-  centerAdminFinancialController.rejectRefund
+  superAdminFinancialController.rejectRefund
 )
 
 // Settlements
@@ -145,13 +146,13 @@ router.get('/settlements',
     .isIn(['draft', 'pending_approval', 'approved', 'processing', 'completed', 'failed', 'cancelled'])
     .withMessage('Invalid settlement status'),
   logAdminAction('view_settlements', 'financial'),
-  centerAdminFinancialController.getSettlements
+  superAdminFinancialController.getSettlements
 )
 
 router.post('/settlements',
   validateSettlementCreation,
   logAdminAction('create_settlement', 'financial'),
-  centerAdminFinancialController.createSettlement
+  superAdminFinancialController.createSettlement
 )
 
 router.post('/settlements/:settlementId/approve',
@@ -161,7 +162,7 @@ router.post('/settlements/:settlementId/approve',
     .isLength({ max: 500 })
     .withMessage('Comments must not exceed 500 characters'),
   logAdminAction('approve_settlement', 'financial'),
-  centerAdminFinancialController.approveSettlement
+  superAdminFinancialController.approveSettlement
 )
 
 // Financial Reports
@@ -183,19 +184,19 @@ router.get('/reports',
     .isIn(['generating', 'completed', 'failed', 'scheduled'])
     .withMessage('Invalid report status'),
   logAdminAction('view_financial_reports', 'financial'),
-  centerAdminFinancialController.getReports
+  superAdminFinancialController.getReports
 )
 
 router.post('/reports/generate',
   validateReportGeneration,
   logAdminAction('generate_financial_report', 'financial'),
-  centerAdminFinancialController.generateReport
+  superAdminFinancialController.generateReport
 )
 
 router.get('/reports/:reportId',
   param('reportId').isMongoId().withMessage('Valid report ID is required'),
   logAdminAction('view_financial_report', 'financial'),
-  centerAdminFinancialController.getReport
+  superAdminFinancialController.getReport
 )
 
 module.exports = router

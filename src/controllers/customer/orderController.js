@@ -4,6 +4,7 @@ const User = require('../../models/User');
 const Address = require('../../models/Address');
 const Branch = require('../../models/Branch');
 const NotificationService = require('../../services/notificationService');
+const { sendEmail, emailTemplates } = require('../../config/email');
 const { 
   sendSuccess, 
   sendError, 
@@ -206,6 +207,19 @@ const createOrder = asyncHandler(async (req, res) => {
     await NotificationService.notifyOrderPlaced(req.user._id, order);
   } catch (error) {
     console.log('Failed to create notification:', error.message);
+  }
+
+  // Send order confirmation email to customer
+  try {
+    const emailOptions = emailTemplates.orderConfirmation(populatedOrder, customer, createdItems);
+    const emailResult = await sendEmail(emailOptions);
+    if (emailResult.success) {
+      console.log('✅ Order confirmation email sent to:', customer.email);
+    } else {
+      console.log('⚠️ Failed to send order confirmation email:', emailResult.error);
+    }
+  } catch (error) {
+    console.log('⚠️ Email sending error:', error.message);
   }
 
   sendSuccess(res, { order: populatedOrder }, 'Order created successfully', 201);

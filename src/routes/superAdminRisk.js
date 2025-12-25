@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminRiskController = require('../controllers/centerAdminRiskController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminRiskController = require('../controllers/superAdminRiskController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body, param, query } = require('express-validator')
 
 // Validation rules
@@ -80,7 +81,7 @@ const validateSLAConfiguration = [
 ]
 
 // All routes require authentication and settings permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('settings'))
 
 // Risk Management Overview
@@ -90,7 +91,7 @@ router.get('/overview',
     .isIn(['7d', '30d', '90d'])
     .withMessage('Invalid timeframe'),
   logAdminAction('view_risk_overview', 'risk_management'),
-  centerAdminRiskController.getRiskOverview
+  superAdminRiskController.getRiskOverview
 )
 
 // Complaints Management
@@ -120,34 +121,34 @@ router.get('/complaints',
     .isIn(['low', 'normal', 'high', 'urgent'])
     .withMessage('Invalid priority'),
   logAdminAction('view_complaints', 'risk_management'),
-  centerAdminRiskController.getComplaints
+  superAdminRiskController.getComplaints
 )
 
 router.get('/complaints/:complaintId',
   param('complaintId').isMongoId().withMessage('Valid complaint ID is required'),
   logAdminAction('view_complaint_details', 'risk_management'),
-  centerAdminRiskController.getComplaint
+  superAdminRiskController.getComplaint
 )
 
 router.post('/complaints/:complaintId/escalate',
   param('complaintId').isMongoId().withMessage('Valid complaint ID is required'),
   validateComplaintEscalation,
   logAdminAction('escalate_complaint', 'risk_management'),
-  centerAdminRiskController.escalateComplaint
+  superAdminRiskController.escalateComplaint
 )
 
 router.post('/complaints/:complaintId/assign',
   param('complaintId').isMongoId().withMessage('Valid complaint ID is required'),
   validateComplaintAssignment,
   logAdminAction('assign_complaint', 'risk_management'),
-  centerAdminRiskController.assignComplaint
+  superAdminRiskController.assignComplaint
 )
 
 router.post('/complaints/:complaintId/resolve',
   param('complaintId').isMongoId().withMessage('Valid complaint ID is required'),
   validateComplaintResolution,
   logAdminAction('resolve_complaint', 'risk_management'),
-  centerAdminRiskController.resolveComplaint
+  superAdminRiskController.resolveComplaint
 )
 
 // Blacklist Management
@@ -173,19 +174,19 @@ router.get('/blacklist',
     .isIn(['fraud', 'payment_default', 'abusive_behavior', 'fake_orders', 'policy_violation', 'security_threat', 'spam', 'identity_theft', 'chargeback_abuse', 'other'])
     .withMessage('Invalid reason'),
   logAdminAction('view_blacklist', 'risk_management'),
-  centerAdminRiskController.getBlacklistEntries
+  superAdminRiskController.getBlacklistEntries
 )
 
 router.post('/blacklist',
   validateBlacklistEntry,
   logAdminAction('create_blacklist_entry', 'risk_management'),
-  centerAdminRiskController.createBlacklistEntry
+  superAdminRiskController.createBlacklistEntry
 )
 
 router.put('/blacklist/:entryId',
   param('entryId').isMongoId().withMessage('Valid entry ID is required'),
   logAdminAction('update_blacklist_entry', 'risk_management'),
-  centerAdminRiskController.updateBlacklistEntry
+  superAdminRiskController.updateBlacklistEntry
 )
 
 router.post('/blacklist/check',
@@ -195,7 +196,7 @@ router.post('/blacklist/check',
   body('identifiers')
     .isObject()
     .withMessage('Identifiers object is required'),
-  centerAdminRiskController.checkBlacklist
+  superAdminRiskController.checkBlacklist
 )
 
 // SLA Configuration Management
@@ -213,13 +214,13 @@ router.get('/sla-configs',
     .isIn(['global', 'regional', 'city', 'branch'])
     .withMessage('Invalid scope'),
   logAdminAction('view_sla_configurations', 'risk_management'),
-  centerAdminRiskController.getSLAConfigurations
+  superAdminRiskController.getSLAConfigurations
 )
 
 router.post('/sla-configs',
   validateSLAConfiguration,
   logAdminAction('create_sla_configuration', 'risk_management'),
-  centerAdminRiskController.createSLAConfiguration
+  superAdminRiskController.createSLAConfiguration
 )
 
 module.exports = router

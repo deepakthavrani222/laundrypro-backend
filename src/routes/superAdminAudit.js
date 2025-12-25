@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminAuditController = require('../controllers/centerAdminAuditController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminAuditController = require('../controllers/superAdminAuditController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { param, query } = require('express-validator')
 
 // Validation rules
@@ -75,41 +76,41 @@ const validateExportQuery = [
 ]
 
 // All routes require authentication and settings permission (audit is part of settings)
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('settings'))
 
 // Get audit logs
 router.get('/',
   validateAuditQuery,
   logAdminAction('view_audit_logs', 'audit'),
-  centerAdminAuditController.getAuditLogs
+  superAdminAuditController.getAuditLogs
 )
 
 // Get audit statistics
 router.get('/stats',
   validateStatsQuery,
   logAdminAction('view_audit_stats', 'audit'),
-  centerAdminAuditController.getAuditStats
+  superAdminAuditController.getAuditStats
 )
 
 // Get activity summary
 router.get('/activity-summary',
   logAdminAction('view_activity_summary', 'audit'),
-  centerAdminAuditController.getActivitySummary
+  superAdminAuditController.getActivitySummary
 )
 
 // Export audit logs
 router.get('/export',
   validateExportQuery,
   logAdminAction('export_audit_logs', 'audit'),
-  centerAdminAuditController.exportAuditLogs
+  superAdminAuditController.exportAuditLogs
 )
 
 // Get single audit log
 router.get('/:logId',
   param('logId').isMongoId().withMessage('Valid log ID is required'),
   logAdminAction('view_audit_log_details', 'audit'),
-  centerAdminAuditController.getAuditLog
+  superAdminAuditController.getAuditLog
 )
 
 module.exports = router

@@ -26,13 +26,52 @@ exports.getAllPartners = async (req, res) => {
       LogisticsPartner.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(parseInt(limit))
+        .lean(),
       LogisticsPartner.countDocuments(query)
     ]);
     
+    // Get order stats for all partners in one aggregation
+    const partnerIds = partners.map(p => p._id);
+    const orderStats = await Order.aggregate([
+      {
+        $match: {
+          logisticsPartner: { $in: partnerIds }
+        }
+      },
+      {
+        $group: {
+          _id: '$logisticsPartner',
+          totalOrders: { $sum: 1 },
+          completedOrders: {
+            $sum: { $cond: [{ $in: ['$status', ['delivered', 'completed']] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+    
+    // Create a map for quick lookup
+    const statsMap = {};
+    orderStats.forEach(stat => {
+      statsMap[stat._id.toString()] = stat;
+    });
+    
+    // Add dynamic performance data to partners
+    const partnersWithStats = partners.map(partner => {
+      const stats = statsMap[partner._id.toString()] || { totalOrders: 0, completedOrders: 0 };
+      return {
+        ...partner,
+        performance: {
+          ...partner.performance,
+          totalOrders: stats.totalOrders,
+          completedOrders: stats.completedOrders
+        }
+      };
+    });
+    
     res.json({
       success: true,
-      data: partners,
+      data: partnersWithStats,
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / parseInt(limit)),

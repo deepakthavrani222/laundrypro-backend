@@ -49,15 +49,60 @@ class CenterAdminBranchController {
 
       const total = await Branch.countDocuments(query)
 
-      // Add computed fields
-      const branchesWithStats = branches.map(branch => ({
-        ...branch,
-        staffCount: branch.staff?.filter(s => s.isActive).length || 0,
-        efficiency: branch.metrics?.efficiency || 0,
-        utilizationRate: branch.metrics?.totalOrders 
-          ? Math.round((branch.metrics.totalOrders / branch.capacity.maxOrdersPerDay) * 100)
+      // Get order stats for all branches in one aggregation
+      const branchIds = branches.map(b => b._id)
+      const orderStats = await Order.aggregate([
+        {
+          $match: {
+            $or: [
+              { branchId: { $in: branchIds } },
+              { branch: { $in: branchIds } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: { $ifNull: ['$branchId', '$branch'] },
+            totalOrders: { $sum: 1 },
+            completedOrders: {
+              $sum: { $cond: [{ $in: ['$status', ['delivered', 'completed']] }, 1, 0] }
+            },
+            totalRevenue: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } }
+          }
+        }
+      ])
+
+      // Create a map for quick lookup
+      const statsMap = {}
+      orderStats.forEach(stat => {
+        statsMap[stat._id.toString()] = stat
+      })
+
+      // Add computed fields with real data
+      const branchesWithStats = branches.map(branch => {
+        const branchStats = statsMap[branch._id.toString()] || { totalOrders: 0, completedOrders: 0, totalRevenue: 0 }
+        const staffCount = branch.staff?.filter(s => s.isActive).length || 0
+        
+        // Calculate efficiency: (completed orders / total orders) * 100
+        const efficiency = branchStats.totalOrders > 0 
+          ? Math.round((branchStats.completedOrders / branchStats.totalOrders) * 100)
           : 0
-      }))
+
+        return {
+          ...branch,
+          staffCount,
+          metrics: {
+            ...branch.metrics,
+            totalOrders: branchStats.totalOrders,
+            completedOrders: branchStats.completedOrders,
+            totalRevenue: branchStats.totalRevenue,
+            efficiency
+          },
+          utilizationRate: branchStats.totalOrders 
+            ? Math.round((branchStats.totalOrders / (branch.capacity?.maxOrdersPerDay || 100)) * 100)
+            : 0
+        }
+      })
 
       return res.json({
         success: true,

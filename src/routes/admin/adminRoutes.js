@@ -28,6 +28,11 @@ const {
   getPaymentStats,
   getAnalytics,
   getStaff,
+  getStaffById,
+  createStaff,
+  updateStaff,
+  deleteStaff,
+  reactivateStaff,
   toggleStaffStatus,
   getBranches,
   getNotifications,
@@ -109,6 +114,11 @@ router.get('/analytics', getAnalytics);
 
 // Staff management routes
 router.get('/staff', getStaff);
+router.get('/staff/:staffId', getStaffById);
+router.post('/staff', createStaff);
+router.put('/staff/:staffId', updateStaff);
+router.delete('/staff/:staffId', deleteStaff);
+router.put('/staff/:staffId/reactivate', reactivateStaff);
 router.patch('/staff/:userId/status', toggleStaffStatus);
 
 // Branch management routes
