@@ -1,17 +1,15 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const CenterAdmin = require('../models/CenterAdmin');
+const SuperAdmin = require('../models/SuperAdmin');
 const { verifyAccessToken, verifyToken } = require('../utils/jwt');
+const { getTokenFromRequest } = require('../utils/cookieConfig');
 
 // Protect routes - require authentication
 const protect = async (req, res, next) => {
   try {
-    let token;
-
-    // Get token from header
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // Get token from cookie or header
+    const token = getTokenFromRequest(req);
 
     if (!token) {
       return res.status(401).json({
@@ -62,11 +60,8 @@ const protect = async (req, res, next) => {
 // Protect routes - accepts both regular user and center admin tokens
 const protectAny = async (req, res, next) => {
   try {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // Get token from cookie or header
+    const token = getTokenFromRequest(req);
 
     if (!token) {
       return res.status(401).json({
@@ -79,12 +74,18 @@ const protectAny = async (req, res, next) => {
       // Use verifyToken (not verifyAccessToken) to accept both token types
       const decoded = verifyToken(token);
       
-      // Check if it's a center admin token (has adminId)
+      // Check if it's a center admin/superadmin token (has adminId)
       if (decoded.adminId) {
-        const admin = await CenterAdmin.findById(decoded.adminId).select('-password');
+        // Try SuperAdmin first, then CenterAdmin
+        let admin = await SuperAdmin.findById(decoded.adminId).select('-password');
+        if (!admin) {
+          admin = await CenterAdmin.findById(decoded.adminId).select('-password');
+        }
+        
         if (admin && admin.isActive) {
           req.user = admin;
           req.isCenterAdmin = true;
+          req.isSuperAdmin = decoded.role === 'superadmin';
           return next();
         }
       }
@@ -121,7 +122,21 @@ const protectAny = async (req, res, next) => {
 // Restrict to specific roles
 const restrictTo = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    // Map superadmin to center_admin for backward compatibility
+    const userRole = req.user.role;
+    const effectiveRoles = [...roles];
+    
+    // If center_admin is allowed, also allow superadmin
+    if (roles.includes('center_admin') && !roles.includes('superadmin')) {
+      effectiveRoles.push('superadmin');
+    }
+    
+    // If super_admin is allowed, also allow superadmin
+    if (roles.includes('super_admin') && !roles.includes('superadmin')) {
+      effectiveRoles.push('superadmin');
+    }
+    
+    if (!effectiveRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions.'
@@ -146,11 +161,8 @@ const requireEmailVerification = (req, res, next) => {
 // Optional authentication - doesn't fail if no token
 const optionalAuth = async (req, res, next) => {
   try {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // Get token from cookie or header
+    const token = getTokenFromRequest(req);
 
     if (token) {
       try {

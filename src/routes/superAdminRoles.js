@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminRoleController = require('../controllers/centerAdminRoleController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminRoleController = require('../controllers/superAdminRoleController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body, param } = require('express-validator')
 
 // Validation rules
@@ -57,39 +58,39 @@ const validateRoleAssignment = [
 ]
 
 // All routes require authentication and users permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('users'))
 
 // Get all roles
 router.get('/',
   logAdminAction('view_roles', 'users'),
-  centerAdminRoleController.getRoles
+  superAdminRoleController.getRoles
 )
 
 // Get role hierarchy
 router.get('/hierarchy',
   logAdminAction('view_role_hierarchy', 'users'),
-  centerAdminRoleController.getRoleHierarchy
+  superAdminRoleController.getRoleHierarchy
 )
 
 // Initialize default roles
 router.post('/initialize',
   logAdminAction('initialize_default_roles', 'system'),
-  centerAdminRoleController.initializeDefaultRoles
+  superAdminRoleController.initializeDefaultRoles
 )
 
 // Get single role
 router.get('/:roleId',
   param('roleId').isMongoId().withMessage('Valid role ID is required'),
   logAdminAction('view_role_details', 'users'),
-  centerAdminRoleController.getRole
+  superAdminRoleController.getRole
 )
 
 // Create new role
 router.post('/',
   validateRoleCreation,
   logAdminAction('create_role', 'users'),
-  centerAdminRoleController.createRole
+  superAdminRoleController.createRole
 )
 
 // Update role
@@ -97,14 +98,14 @@ router.put('/:roleId',
   param('roleId').isMongoId().withMessage('Valid role ID is required'),
   validateRoleUpdate,
   logAdminAction('update_role', 'users'),
-  centerAdminRoleController.updateRole
+  superAdminRoleController.updateRole
 )
 
 // Delete role
 router.delete('/:roleId',
   param('roleId').isMongoId().withMessage('Valid role ID is required'),
   logAdminAction('delete_role', 'users'),
-  centerAdminRoleController.deleteRole
+  superAdminRoleController.deleteRole
 )
 
 // Add permission to role
@@ -112,7 +113,7 @@ router.post('/:roleId/permissions',
   param('roleId').isMongoId().withMessage('Valid role ID is required'),
   validatePermissionAddition,
   logAdminAction('add_role_permission', 'users'),
-  centerAdminRoleController.addPermission
+  superAdminRoleController.addPermission
 )
 
 // Remove permission from role
@@ -120,14 +121,14 @@ router.delete('/:roleId/permissions',
   param('roleId').isMongoId().withMessage('Valid role ID is required'),
   body('module').notEmpty().withMessage('Module is required'),
   logAdminAction('remove_role_permission', 'users'),
-  centerAdminRoleController.removePermission
+  superAdminRoleController.removePermission
 )
 
 // Assign role to user
 router.post('/assign',
   validateRoleAssignment,
   logAdminAction('assign_role_to_user', 'users'),
-  centerAdminRoleController.assignRole
+  superAdminRoleController.assignRole
 )
 
 module.exports = router

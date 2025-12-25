@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const errorHandler = require('./middlewares/errorHandler');
@@ -14,21 +15,26 @@ const statsRoutes = require('./routes/stats');
 const servicesRoutes = require('./routes/services');
 const customerRoutes = require('./routes/customer/customerRoutes');
 const adminRoutes = require('./routes/admin/adminRoutes');
-const branchRoutes = require('./routes/branch/branchRoutes');
+const centerAdminRoutes = require('./routes/centerAdmin/centerAdminRoutes');
 const supportRoutes = require('./routes/support/supportRoutes');
-const centerAdminAuthRoutes = require('./routes/centerAdminAuth');
-const centerAdminDashboardRoutes = require('./routes/centerAdminDashboard');
-const centerAdminBranchRoutes = require('./routes/centerAdminBranches');
-const centerAdminRoleRoutes = require('./routes/centerAdminRoles');
-const centerAdminPricingRoutes = require('./routes/centerAdminPricing');
-const centerAdminFinancialRoutes = require('./routes/centerAdminFinancial');
-const centerAdminRiskRoutes = require('./routes/centerAdminRisk');
-const centerAdminAnalyticsRoutes = require('./routes/centerAdminAnalytics');
-const centerAdminSettingsRoutes = require('./routes/centerAdminSettings');
-const centerAdminAuditRoutes = require('./routes/centerAdminAudit');
-const centerAdminLogisticsRoutes = require('./routes/centerAdminLogistics');
-const centerAdminOrdersRoutes = require('./routes/centerAdminOrders');
-const centerAdminUsersRoutes = require('./routes/centerAdminUsers');
+
+// SuperAdmin routes
+const superAdminAuthRoutes = require('./routes/superAdminAuthRoutes');
+const superAdminDashboardRoutes = require('./routes/superAdminDashboardRoutes');
+const superAdminBranchRoutes = require('./routes/superAdminBranches');
+const superAdminRoleRoutes = require('./routes/superAdminRoles');
+const superAdminPricingRoutes = require('./routes/superAdminPricing');
+const superAdminFinancialRoutes = require('./routes/superAdminFinancial');
+const superAdminRiskRoutes = require('./routes/superAdminRisk');
+const superAdminAnalyticsRoutes = require('./routes/superAdminAnalytics');
+const superAdminSettingsRoutes = require('./routes/superAdminSettings');
+const superAdminAuditRoutes = require('./routes/superAdminAudit');
+const superAdminLogisticsRoutes = require('./routes/superAdminLogistics');
+const superAdminOrdersRoutes = require('./routes/superAdminOrders');
+const superAdminUsersRoutes = require('./routes/superAdminUsers');
+const superAdminAdminsRoutes = require('./routes/superAdminAdmins');
+const superAdminCustomersRoutes = require('./routes/superAdminCustomers');
+
 const servicePricesRoutes = require('./routes/servicePrices');
 const serviceItemsRoutes = require('./routes/serviceItems');
 const deliveryRoutes = require('./routes/delivery');
@@ -39,7 +45,15 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
+
+// CORS configuration with credentials support for cookies
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3002',
+  credentials: true  // Allow cookies to be sent
+}));
+
+// Cookie parser middleware
+app.use(cookieParser());
 
 // Rate limiting (relaxed for development)
 const limiter = rateLimit({
@@ -78,28 +92,38 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/branch', branchRoutes);
 app.use('/api/support', supportRoutes);
-app.use('/api/center-admin/auth', centerAdminAuthRoutes);
-app.use('/api/center-admin/dashboard', centerAdminDashboardRoutes);
-app.use('/api/center-admin/branches', centerAdminBranchRoutes);
-app.use('/api/center-admin/roles', centerAdminRoleRoutes);
-app.use('/api/center-admin/pricing', centerAdminPricingRoutes);
-app.use('/api/center-admin/financial', centerAdminFinancialRoutes);
-app.use('/api/center-admin/risk', centerAdminRiskRoutes);
-app.use('/api/center-admin/analytics', centerAdminAnalyticsRoutes);
-app.use('/api/center-admin/settings', centerAdminSettingsRoutes);
-app.use('/api/center-admin/audit', centerAdminAuditRoutes);
-app.use('/api/center-admin/logistics', centerAdminLogisticsRoutes);
-app.use('/api/center-admin/orders', centerAdminOrdersRoutes);
-app.use('/api/center-admin/users', centerAdminUsersRoutes);
+
+// SuperAdmin routes
+app.use('/api/superadmin/auth', superAdminAuthRoutes);
+app.use('/api/superadmin/dashboard', superAdminDashboardRoutes);
+app.use('/api/superadmin/branches', superAdminBranchRoutes);
+app.use('/api/superadmin/roles', superAdminRoleRoutes);
+app.use('/api/superadmin/pricing', superAdminPricingRoutes);
+app.use('/api/superadmin/financial', superAdminFinancialRoutes);
+app.use('/api/superadmin/risk', superAdminRiskRoutes);
+app.use('/api/superadmin/analytics', superAdminAnalyticsRoutes);
+app.use('/api/superadmin/settings', superAdminSettingsRoutes);
+app.use('/api/superadmin/audit', superAdminAuditRoutes);
+app.use('/api/superadmin/logistics', superAdminLogisticsRoutes);
+app.use('/api/superadmin/orders', superAdminOrdersRoutes);
+app.use('/api/superadmin/users', superAdminUsersRoutes);
+app.use('/api/superadmin/admins', superAdminAdminsRoutes);
+app.use('/api/superadmin/customers', superAdminCustomersRoutes);
+app.use('/api/superadmin/services', adminServiceRoutes);
+app.use('/api/superadmin/branch-services', branchServiceRoutes);
+
+// Center Admin routes (previously branch manager)
+app.use('/api/center-admin', centerAdminRoutes);
+
+// Legacy routes for backward compatibility
+app.use('/api/branch', centerAdminRoutes);
+
 app.use('/api/service-prices', servicePricesRoutes);
 app.use('/api/service-items', serviceItemsRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/services', adminServiceRoutes);
 app.use('/api/admin/branches', branchServiceRoutes);
-app.use('/api/center-admin/services', adminServiceRoutes);
-app.use('/api/center-admin/branch-services', branchServiceRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

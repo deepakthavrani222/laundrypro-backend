@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminDashboardController = require('../controllers/centerAdminDashboardController')
-const { authenticateCenterAdmin } = require('../middlewares/centerAdminAuthSimple')
+const superAdminDashboardController = require('../controllers/superAdminDashboardController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
 const { query } = require('express-validator')
 
 // Dashboard overview validation
@@ -43,18 +43,18 @@ const validateAnalyticsQuery = [
 ]
 
 // All routes require authentication
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 
 // Dashboard overview
 router.get('/overview',
   validateDashboardQuery,
-  centerAdminDashboardController.getDashboardOverview
+  superAdminDashboardController.getDashboardOverview
 )
 
 // Detailed analytics
 router.get('/analytics',
   validateAnalyticsQuery,
-  centerAdminDashboardController.getDetailedAnalytics
+  superAdminDashboardController.getDetailedAnalytics
 )
 
 module.exports = router

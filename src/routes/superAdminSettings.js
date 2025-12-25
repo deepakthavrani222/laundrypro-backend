@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const centerAdminSettingsController = require('../controllers/centerAdminSettingsController')
-const { authenticateCenterAdmin, requirePermission, logAdminAction } = require('../middlewares/centerAdminAuth')
+const superAdminSettingsController = require('../controllers/superAdminSettingsController')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
+const { requirePermission, logAdminAction } = require('../middlewares/superAdminAuth')
 const { body } = require('express-validator')
 
 // Validation rules
@@ -41,46 +42,46 @@ const validatePasswordChange = [
 ]
 
 // All routes require authentication and settings permission
-router.use(authenticateCenterAdmin)
+router.use(authenticateSuperAdmin)
 router.use(requirePermission('settings'))
 
 // Get system settings
 router.get('/system',
   logAdminAction('view_system_settings', 'settings'),
-  centerAdminSettingsController.getSystemSettings
+  superAdminSettingsController.getSystemSettings
 )
 
 // Update system settings
 router.put('/system',
   validateSettingsUpdate,
   logAdminAction('update_system_settings', 'settings'),
-  centerAdminSettingsController.updateSystemSettings
+  superAdminSettingsController.updateSystemSettings
 )
 
 // Get profile settings
 router.get('/profile',
   logAdminAction('view_profile_settings', 'settings'),
-  centerAdminSettingsController.getProfileSettings
+  superAdminSettingsController.getProfileSettings
 )
 
 // Update profile
 router.put('/profile',
   validateProfileUpdate,
   logAdminAction('update_profile', 'settings'),
-  centerAdminSettingsController.updateProfile
+  superAdminSettingsController.updateProfile
 )
 
 // Change password
 router.post('/change-password',
   validatePasswordChange,
   logAdminAction('change_password', 'security'),
-  centerAdminSettingsController.changePassword
+  superAdminSettingsController.changePassword
 )
 
 // Get system information
 router.get('/system-info',
   logAdminAction('view_system_info', 'settings'),
-  centerAdminSettingsController.getSystemInfo
+  superAdminSettingsController.getSystemInfo
 )
 
 module.exports = router

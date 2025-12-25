@@ -70,6 +70,11 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'
   },
+  // Admin/Center Admin permissions (flexible schema for different role types)
+  permissions: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   // Staff/Worker specific fields
   workerType: {
     type: String,

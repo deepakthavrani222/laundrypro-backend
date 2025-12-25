@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const ServicePrice = require('../models/ServicePrice')
 const { protect } = require('../middlewares/auth')
-const { authenticateCenterAdmin } = require('../middlewares/centerAdminAuthSimple')
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple')
 
 // @route   GET /api/service-prices
 // @desc    Get all service prices (public)

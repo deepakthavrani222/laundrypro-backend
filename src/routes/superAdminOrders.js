@@ -1,17 +1,17 @@
 const express = require('express');
-const { authenticateCenterAdmin } = require('../middlewares/centerAdminAuth');
+const { authenticateSuperAdmin } = require('../middlewares/superAdminAuthSimple');
 const {
   getAllOrders,
   getOrderById,
   assignOrderToBranch,
   assignLogisticsPartner,
   updateOrderStatus
-} = require('../controllers/centerAdminOrdersController');
+} = require('../controllers/superAdminOrdersController');
 
 const router = express.Router();
 
-// Apply center admin authentication
-router.use(authenticateCenterAdmin);
+// Apply super admin authentication
+router.use(authenticateSuperAdmin);
 
 // Order routes
 router.get('/', getAllOrders);

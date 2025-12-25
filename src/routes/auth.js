@@ -9,7 +9,9 @@ const {
   login,
   getProfile,
   updateProfile,
-  logout
+  logout,
+  verifyInvitation,
+  acceptInvitation
 } = require('../controllers/authController');
 
 // Import middleware
@@ -29,6 +31,10 @@ router.post('/register', validate(registerValidation), register);
 router.post('/verify-email', validate(emailVerificationValidation), verifyEmail);
 router.post('/resend-verification', resendVerificationEmail);
 router.post('/login', validate(loginValidation), login);
+
+// Invitation routes (public)
+router.get('/invitation/:token', verifyInvitation);
+router.post('/invitation/accept', acceptInvitation);
 
 // Protected routes
 router.use(protect); // All routes below require authentication

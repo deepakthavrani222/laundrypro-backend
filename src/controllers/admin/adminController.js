@@ -47,11 +47,11 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   // Get recent orders
   const recentOrders = await Order.find()
-    .populate('customer', 'name phone')
+    .populate('customer', 'name phone isVIP')
     .populate('branch', 'name code')
     .sort({ createdAt: -1 })
     .limit(10)
-    .select('orderNumber status pricing.total createdAt isExpress');
+    .select('orderNumber status pricing.total createdAt isExpress items');
 
   // Get order status distribution
   const statusDistribution = await Order.aggregate([
@@ -1072,6 +1072,130 @@ const getStaff = asyncHandler(async (req, res) => {
   sendSuccess(res, response, 'Staff members retrieved successfully');
 });
 
+// @desc    Get staff member by ID
+// @route   GET /api/admin/staff/:staffId
+// @access  Private (Admin)
+const getStaffById = asyncHandler(async (req, res) => {
+  const { staffId } = req.params;
+
+  const staff = await User.findOne({ _id: staffId, role: { $ne: 'customer' } })
+    .select('-password')
+    .populate('assignedBranch', 'name code');
+
+  if (!staff) {
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff member not found', 404);
+  }
+
+  sendSuccess(res, { staff }, 'Staff member retrieved successfully');
+});
+
+// @desc    Create new staff member
+// @route   POST /api/admin/staff
+// @access  Private (Admin)
+const createStaff = asyncHandler(async (req, res) => {
+  const { name, email, phone, password, permissions, assignedBranch } = req.body;
+
+  if (!name || !email || !phone || !password) {
+    return sendError(res, 'MISSING_DATA', 'Name, email, phone, and password are required', 400);
+  }
+
+  // Check if email already exists
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    return sendError(res, 'EMAIL_EXISTS', 'Email already registered', 400);
+  }
+
+  // Create staff with admin role but limited permissions
+  const staff = new User({
+    name,
+    email: email.toLowerCase(),
+    phone,
+    password,
+    role: 'admin',
+    permissions: permissions || {},
+    assignedBranch,
+    isActive: true,
+    isEmailVerified: true,
+    createdBy: req.user._id
+  });
+
+  await staff.save();
+
+  const createdStaff = await User.findById(staff._id)
+    .select('-password')
+    .populate('assignedBranch', 'name code');
+
+  sendSuccess(res, { staff: createdStaff }, 'Staff member created successfully', 201);
+});
+
+// @desc    Update staff member
+// @route   PUT /api/admin/staff/:staffId
+// @access  Private (Admin)
+const updateStaff = asyncHandler(async (req, res) => {
+  const { staffId } = req.params;
+  const { name, phone, permissions, assignedBranch, isActive } = req.body;
+
+  const staff = await User.findOne({ _id: staffId, role: { $ne: 'customer' } });
+  if (!staff) {
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff member not found', 404);
+  }
+
+  // Update fields if provided
+  if (name) staff.name = name;
+  if (phone) staff.phone = phone;
+  if (permissions) staff.permissions = permissions;
+  if (assignedBranch !== undefined) staff.assignedBranch = assignedBranch || null;
+  if (isActive !== undefined) staff.isActive = isActive;
+
+  await staff.save();
+
+  const updatedStaff = await User.findById(staffId)
+    .select('-password')
+    .populate('assignedBranch', 'name code');
+
+  sendSuccess(res, { staff: updatedStaff }, 'Staff member updated successfully');
+});
+
+// @desc    Delete/Deactivate staff member
+// @route   DELETE /api/admin/staff/:staffId
+// @access  Private (Admin)
+const deleteStaff = asyncHandler(async (req, res) => {
+  const { staffId } = req.params;
+
+  const staff = await User.findOne({ _id: staffId, role: { $ne: 'customer' } });
+  if (!staff) {
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff member not found', 404);
+  }
+
+  // Prevent deleting yourself
+  if (staff._id.toString() === req.user._id.toString()) {
+    return sendError(res, 'CANNOT_DELETE_SELF', 'You cannot delete your own account', 400);
+  }
+
+  // Soft delete - deactivate instead of removing
+  staff.isActive = false;
+  await staff.save();
+
+  sendSuccess(res, { staff: { _id: staff._id, name: staff.name } }, 'Staff member deactivated successfully');
+});
+
+// @desc    Reactivate staff member
+// @route   PUT /api/admin/staff/:staffId/reactivate
+// @access  Private (Admin)
+const reactivateStaff = asyncHandler(async (req, res) => {
+  const { staffId } = req.params;
+
+  const staff = await User.findOne({ _id: staffId, role: { $ne: 'customer' } });
+  if (!staff) {
+    return sendError(res, 'STAFF_NOT_FOUND', 'Staff member not found', 404);
+  }
+
+  staff.isActive = true;
+  await staff.save();
+
+  sendSuccess(res, { staff: { _id: staff._id, name: staff.name, isActive: true } }, 'Staff member reactivated successfully');
+});
+
 // @desc    Toggle staff status
 // @route   PATCH /api/admin/staff/:userId/status
 // @access  Private (Admin)
@@ -1306,6 +1430,11 @@ module.exports = {
   getPaymentStats,
   getAnalytics,
   getStaff,
+  getStaffById,
+  createStaff,
+  updateStaff,
+  deleteStaff,
+  reactivateStaff,
   toggleStaffStatus,
   getBranches,
   getNotifications,
