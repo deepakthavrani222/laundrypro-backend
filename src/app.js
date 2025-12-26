@@ -40,6 +40,7 @@ const serviceItemsRoutes = require('./routes/serviceItems');
 const deliveryRoutes = require('./routes/delivery');
 const adminServiceRoutes = require('./routes/admin/serviceRoutes');
 const branchServiceRoutes = require('./routes/admin/branchServiceRoutes');
+const barcodeRoutes = require('./routes/barcode');
 
 const app = express();
 
@@ -153,6 +154,7 @@ app.use('/api/service-items', serviceItemsRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/services', adminServiceRoutes);
 app.use('/api/admin/branches', branchServiceRoutes);
+app.use('/api/barcode', barcodeRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
