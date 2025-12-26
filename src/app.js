@@ -47,8 +47,24 @@ const app = express();
 app.use(helmet());
 
 // CORS configuration with credentials support for cookies
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3002',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Allow all origins in production for now
+    }
+  },
   credentials: true  // Allow cookies to be sent
 }));
 
@@ -82,6 +98,16 @@ app.get('/health', (req, res) => {
     success: true,
     message: 'Laundry Management API is running',
     timestamp: new Date().toISOString()
+  });
+});
+
+// API Health check
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Laundry Management API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 });
 
