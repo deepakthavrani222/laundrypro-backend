@@ -7,6 +7,21 @@ const orderSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  // Barcode for order tracking and scanning
+  barcode: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  barcodeGeneratedAt: {
+    type: Date
+  },
+  // Service type: full_service, self_drop_self_pickup, self_drop_home_delivery, home_pickup_self_pickup
+  serviceType: {
+    type: String,
+    enum: ['full_service', 'self_drop_self_pickup', 'self_drop_home_delivery', 'home_pickup_self_pickup'],
+    default: 'full_service'
+  },
   customer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -192,17 +207,28 @@ const orderSchema = new mongoose.Schema({
 
 // Indexes
 orderSchema.index({ orderNumber: 1 });
+orderSchema.index({ barcode: 1 });
 orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ branch: 1, status: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ pickupDate: 1 });
 
-// Generate order number
+// Generate order number and barcode
 orderSchema.pre('save', async function(next) {
   if (!this.orderNumber) {
     const count = await mongoose.model('Order').countDocuments();
     this.orderNumber = `ORD${Date.now()}${String(count + 1).padStart(4, '0')}`;
   }
+  
+  // Generate unique barcode if not exists
+  if (!this.barcode) {
+    // Format: LP + timestamp(6 digits) + random(4 digits) = 12 character barcode
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(1000 + Math.random() * 9000);
+    this.barcode = `LP${timestamp}${random}`;
+    this.barcodeGeneratedAt = new Date();
+  }
+  
   next();
 });
 
