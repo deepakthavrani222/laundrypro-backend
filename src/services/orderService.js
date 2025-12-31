@@ -2,7 +2,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const Branch = require('../models/Branch');
 const NotificationService = require('./notificationService');
-const { ORDER_STATUS } = require('../config/constants');
+const { ORDER_STATUS, NOTIFICATION_TYPES } = require('../config/constants');
 
 class OrderService {
   // Update order status with notifications
@@ -80,7 +80,7 @@ class OrderService {
           // Notify customer
           await NotificationService.createNotification({
             recipientId: customerId,
-            type: 'ORDER_ASSIGNED',
+            type: NOTIFICATION_TYPES.ORDER_ASSIGNED,
             title: 'Order Assigned to Branch',
             message: `Your order ${order.orderNumber} has been assigned to our processing facility.`,
             data: { orderId: order._id }
@@ -99,7 +99,7 @@ class OrderService {
         case ORDER_STATUS.IN_PROCESS:
           await NotificationService.createNotification({
             recipientId: customerId,
-            type: 'ORDER_IN_PROCESS',
+            type: NOTIFICATION_TYPES.ORDER_IN_PROCESS,
             title: 'Order Being Processed',
             message: `Your order ${order.orderNumber} is now being processed at our facility.`,
             data: { orderId: order._id }
@@ -124,7 +124,7 @@ class OrderService {
         case ORDER_STATUS.CANCELLED:
           await NotificationService.createNotification({
             recipientId: customerId,
-            type: 'ORDER_CANCELLED',
+            type: NOTIFICATION_TYPES.ORDER_CANCELLED,
             title: 'Order Cancelled',
             message: `Your order ${order.orderNumber} has been cancelled.`,
             data: { orderId: order._id }
@@ -151,7 +151,7 @@ class OrderService {
         if (points > 0) {
           await NotificationService.createNotification({
             recipientId: customerId,
-            type: 'REWARD_POINTS',
+            type: NOTIFICATION_TYPES.REWARD_POINTS,
             title: 'Reward Points Earned',
             message: `You earned ${points} reward points for order ${order.orderNumber}!`,
             data: { orderId: order._id, pointsEarned: points }
@@ -178,7 +178,7 @@ class OrderService {
     if (milestones.includes(customer.totalOrders)) {
       await NotificationService.createNotification({
         recipientId: customer._id,
-        type: 'MILESTONE_ACHIEVED',
+        type: NOTIFICATION_TYPES.MILESTONE_ACHIEVED,
         title: 'Milestone Achieved!',
         message: `Congratulations! You've completed ${customer.totalOrders} orders with us. Thank you for your loyalty!`,
         data: { milestone: customer.totalOrders }
@@ -190,7 +190,7 @@ class OrderService {
         
         await NotificationService.createNotification({
           recipientId: customer._id,
-          type: 'VIP_UPGRADE',
+          type: NOTIFICATION_TYPES.VIP_UPGRADE,
           title: 'Welcome to VIP!',
           message: 'You are now a VIP customer! Enjoy priority processing, special discounts, and reward points on every order.',
           data: { upgradedAt: new Date() }

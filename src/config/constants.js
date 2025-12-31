@@ -261,13 +261,19 @@ const INVENTORY_ITEMS = {
 // Notification Types
 const NOTIFICATION_TYPES = {
   ORDER_PLACED: 'order_placed',
+  ORDER_ASSIGNED: 'order_assigned',
   ORDER_PICKED: 'order_picked',
+  ORDER_IN_PROCESS: 'order_in_process',
   ORDER_READY: 'order_ready',
   ORDER_OUT_FOR_DELIVERY: 'order_out_for_delivery',
   ORDER_DELIVERED: 'order_delivered',
+  ORDER_CANCELLED: 'order_cancelled',
   LOW_INVENTORY: 'low_inventory',
   NEW_COMPLAINT: 'new_complaint',
-  REFUND_REQUEST: 'refund_request'
+  REFUND_REQUEST: 'refund_request',
+  REWARD_POINTS: 'reward_points',
+  MILESTONE_ACHIEVED: 'milestone_achieved',
+  VIP_UPGRADE: 'vip_upgrade'
 };
 
 // Consumption Rates (per service)
